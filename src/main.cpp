@@ -160,19 +160,20 @@ void loop() {
       Serial.println("Ingrese la NUEVA ID deseada (1-247):");
       int nueva_id = leerConsola().toInt();
       
-      // Intentamos escribir en 0x0200 (Dirección del esclavo según manual)
+      // Obtenemos la dirección desde el JSON. 
+      // Si no existe el campo "reg_id_config", usamos 512 (0x0200) por defecto.
+      int reg_config = s_data["reg_id_config"] | 512; 
+
+      Serial.printf("Intentando cambiar ID en registro: %d (0x%04X)...\n", reg_config, reg_config);
+      
       node.clearResponseBuffer();
-      uint8_t res = node.writeSingleRegister(0x0200, nueva_id);
+      uint8_t res = node.writeSingleRegister(reg_config, nueva_id);
       
       if (res == node.ku8MBSuccess) {
-        Serial.printf("EXITO: ID cambiada a %d. El sensor ya no respondera en la ID antigua.\n", nueva_id);
+        Serial.printf("EXITO: ID cambiada a %d en el registro %d.\n", nueva_id, reg_config);
+        Serial.println("Recuerde actualizar su configuración de ID para la próxima lectura.");
       } else {
-        // Si falla con 0x0200, intentamos con 0x0002 por si acaso es una versión distinta
-        Serial.println("Fallo en 0x0200, reintentando en registro 2...");
-        res = node.writeSingleRegister(0x0002, nueva_id);
-        
-        if(res == node.ku8MBSuccess) Serial.println("Exito en registro 2.");
-        else Serial.printf("ERROR CRITICO: 0x%02X\n", res);
+        Serial.printf("ERROR: No se pudo cambiar la ID. Código Modbus: 0x%02X\n", res);
       }
     }
   } else if (opcion == 2) {

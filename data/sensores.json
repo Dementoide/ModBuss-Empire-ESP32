@@ -1,7 +1,7 @@
 [
   {
   "nombre": "Rika RK520-02",
-  "reg_id_config": 2,
+  "reg_id_config": 512,
   "variables": [
     {"etiqueta": "Temperatura", "reg": 0, "size": 1, "mult": 0.1, "off": 0.0, "uni": "°C"},
     {"etiqueta": "Humedad", "reg": 1, "size": 1, "mult": 0.1, "off": 0.0, "uni": "%"},
