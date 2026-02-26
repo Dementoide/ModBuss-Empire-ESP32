@@ -1,0 +1,17 @@
+[
+  {
+  "nombre": "Rika RK520-02",
+  "reg_id_config": 2,
+  "variables": [
+    {"etiqueta": "Temperatura", "reg": 0, "size": 1, "mult": 0.1, "off": 0.0, "uni": "°C"},
+    {"etiqueta": "Humedad", "reg": 1, "size": 1, "mult": 0.1, "off": 0.0, "uni": "%"},
+    {"etiqueta": "EC", "reg": 2, "size": 1, "mult": 0.01, "off": 0.0, "uni": "mS/cm"}
+  ]
+},
+  {
+    "nombre": "Sensor Luz PAR",
+    "variables": [
+      {"etiqueta": "Radiacion PAR", "reg": 0, "size": 2, "mult": 1.0, "off": 0.0, "uni": "umol/m2s"}
+    ]
+  }
+]
