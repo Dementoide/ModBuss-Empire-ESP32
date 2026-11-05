@@ -1,0 +1,25 @@
+# ModbusEmpire: sdkconfig.defaults (framework = espidf, ESP-IDF 5.5).
+# Solo se aplica al generar sdkconfig.<env>: tras cambiarlo, borrar
+# sdkconfig.esp32dev / sdkconfig.test para regenerarlos.
+
+# --- Flash y particiones ---
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_16MB.csv"
+
+# --- Consola por UART0 a 115200 ---
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
+
+# --- Logs del IDF: solo avisos (la consola de menus es printf) ---
+CONFIG_LOG_DEFAULT_LEVEL_WARN=y
+CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
+
+# --- FreeRTOS ---
+CONFIG_FREERTOS_HZ=1000
+# La main task arma y parsea el JSON de sensores con cJSON.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# --- Compilador ---
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+CONFIG_COMPILER_CXX_EXCEPTIONS=n

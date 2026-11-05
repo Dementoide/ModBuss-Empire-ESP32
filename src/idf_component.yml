@@ -1,0 +1,11 @@
+## IDF Component Manager Manifest File
+dependencies:
+  idf:
+    version: ">=6.1.0"
+
+  joltwallet/littlefs:
+    version: "^1.16.4"
+
+  # IDF 6 ya no trae cJSON en el framework: viene del registry.
+  espressif/cjson:
+    version: "*"

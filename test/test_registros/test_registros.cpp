@@ -1,0 +1,177 @@
+/**
+ * TEST_REGISTROS.CPP
+ * Decodificación de registros, parseo de entrada y tramas RTU del maestro propio.
+ *
+ * Corre en la placa: pio test -e test
+ */
+#include <string.h>
+#include <unity.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include "registros.h"
+#include "modbus_error.h"
+#include "modbus_rtu.h"
+
+void setUp() {}
+void tearDown() {}
+
+// --- Decodificación -------------------------------------------------------
+
+void test_s16_negativo() {
+  uint16_t r[] = {0xFFFB};
+  TEST_ASSERT_EQUAL_FLOAT(-5.0f, (float)decodificar(r, T_S16, ORDEN_ABCD));
+  TEST_ASSERT_EQUAL_FLOAT(65531.0f, (float)decodificar(r, T_U16, ORDEN_ABCD));
+}
+
+void test_u32_orden_palabras() {
+  uint16_t r[] = {0x0001, 0x0002};
+  TEST_ASSERT_EQUAL_UINT32(0x00010002, unir32(r[0], r[1], ORDEN_ABCD));
+  TEST_ASSERT_EQUAL_UINT32(0x00020001, unir32(r[0], r[1], ORDEN_CDAB));
+  TEST_ASSERT_EQUAL_FLOAT(65538.0f, (float)decodificar(r, T_U32, ORDEN_ABCD));
+}
+
+void test_s32_negativo() {
+  uint16_t r[] = {0xFFFF, 0xFFFE};
+  TEST_ASSERT_EQUAL_FLOAT(-2.0f, (float)decodificar(r, T_S32, ORDEN_ABCD));
+}
+
+void test_f32_ieee() {
+  uint16_t abcd[] = {0x41C8, 0x0000};  // 25.0f
+  uint16_t cdab[] = {0x0000, 0x41C8};
+  TEST_ASSERT_EQUAL_FLOAT(25.0f, (float)decodificar(abcd, T_F32, ORDEN_ABCD));
+  TEST_ASSERT_EQUAL_FLOAT(25.0f, (float)decodificar(cdab, T_F32, ORDEN_CDAB));
+}
+
+void test_escala() {
+  uint16_t r[] = {235};
+  TEST_ASSERT_FLOAT_WITHIN(1e-4, 23.5f, (float)aplicarEscala(decodificar(r, T_U16, ORDEN_ABCD), 0.1, 0.0));
+  TEST_ASSERT_FLOAT_WITHIN(1e-4, 13.5f, (float)aplicarEscala(decodificar(r, T_U16, ORDEN_ABCD), 0.1, -10.0));
+}
+
+void test_palabras_de_tipo() {
+  TEST_ASSERT_EQUAL_UINT8(1, palabrasDeTipo(T_U16));
+  TEST_ASSERT_EQUAL_UINT8(1, palabrasDeTipo(T_S16));
+  TEST_ASSERT_EQUAL_UINT8(2, palabrasDeTipo(T_U32));
+  TEST_ASSERT_EQUAL_UINT8(2, palabrasDeTipo(T_F32));
+}
+
+// --- Entrada --------------------------------------------------------------
+
+void test_parsear_numero() {
+  long v;
+  TEST_ASSERT_TRUE(parsearNumero("512", &v));    TEST_ASSERT_EQUAL(512, v);
+  TEST_ASSERT_TRUE(parsearNumero("0x0200", &v)); TEST_ASSERT_EQUAL(512, v);
+  TEST_ASSERT_TRUE(parsearNumero("010", &v));    TEST_ASSERT_EQUAL(10, v);  // no octal
+  TEST_ASSERT_TRUE(parsearNumero("-3", &v));     TEST_ASSERT_EQUAL(-3, v);
+  TEST_ASSERT_FALSE(parsearNumero("", &v));
+  TEST_ASSERT_FALSE(parsearNumero("0x", &v));
+  TEST_ASSERT_FALSE(parsearNumero("12a", &v));
+}
+
+void test_parsear_tipo_y_orden() {
+  TipoDato t;
+  OrdenPalabras o;
+  TEST_ASSERT_TRUE(parsearTipo("F32", &t));   TEST_ASSERT_EQUAL(T_F32, t);
+  TEST_ASSERT_TRUE(parsearTipo("float", &t)); TEST_ASSERT_EQUAL(T_F32, t);
+  TEST_ASSERT_TRUE(parsearTipo("s16", &t));   TEST_ASSERT_EQUAL(T_S16, t);
+  TEST_ASSERT_FALSE(parsearTipo("u8", &t));
+  TEST_ASSERT_TRUE(parsearOrden("cdab", &o)); TEST_ASSERT_EQUAL(ORDEN_CDAB, o);
+  TEST_ASSERT_FALSE(parsearOrden("BADC", &o));
+}
+
+void test_nombres_error() {
+  TEST_ASSERT_EQUAL_STRING("RESPONSE_TIMED_OUT", nombreErrorModbus(MB_ERR_RESPONSE_TIMED_OUT));
+  TEST_ASSERT_EQUAL_STRING("INVALID_SLAVE_ID", nombreErrorModbus(MB_ERR_INVALID_SLAVE_ID));
+  TEST_ASSERT_EQUAL_STRING("UNKNOWN", nombreErrorModbus(0x77));
+  TEST_ASSERT_TRUE(mbEsExcepcion(MB_ERR_ILLEGAL_DATA_ADDRESS));
+  TEST_ASSERT_FALSE(mbEsExcepcion(MB_ERR_INVALID_CRC));
+}
+
+// --- Tramas RTU -----------------------------------------------------------
+
+static size_t conCrc(uint8_t* trama, size_t largo) {
+  uint16_t crc = mbCrc16(trama, largo);
+  trama[largo] = crc & 0xFF;
+  trama[largo + 1] = crc >> 8;
+  return largo + 2;
+}
+
+// Vector de la especificación: leer 10 registros desde 0 del esclavo 1.
+void test_rtu_arma_lectura_referencia() {
+  const uint8_t esperado[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x0A, 0xC5, 0xCD};
+  uint8_t trama[8];
+  TEST_ASSERT_EQUAL_UINT(8, mbArmarLectura(1, 3, 0, 10, trama));
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(esperado, trama, 8);
+}
+
+void test_rtu_arma_lectura_input() {
+  uint8_t trama[8];
+  mbArmarLectura(2, 4, 0x0102, 3, trama);
+  TEST_ASSERT_EQUAL_UINT8(0x04, trama[1]);
+  TEST_ASSERT_EQUAL_UINT8(0x01, trama[2]);
+  TEST_ASSERT_EQUAL_UINT8(0x02, trama[3]);
+  TEST_ASSERT_EQUAL_UINT16(mbCrc16(trama, 6), trama[6] | (trama[7] << 8));
+}
+
+void test_rtu_parsea_lectura_valida() {
+  uint8_t rsp[16] = {0x01, 0x03, 0x04, 0x01, 0x23, 0xFF, 0xFB};
+  size_t n = conCrc(rsp, 7);
+  uint16_t out[2] = {0, 0};
+  TEST_ASSERT_EQUAL_UINT8(MB_ERR_SUCCESS, mbParsearLectura(rsp, n, 1, 3, 2, out));
+  TEST_ASSERT_EQUAL_HEX16(0x0123, out[0]);
+  TEST_ASSERT_EQUAL_HEX16(0xFFFB, out[1]);
+}
+
+void test_rtu_detecta_errores_de_lectura() {
+  uint8_t rsp[16] = {0x01, 0x03, 0x04, 0x01, 0x23, 0xFF, 0xFB};
+  size_t n = conCrc(rsp, 7);
+  uint16_t out[2];
+  TEST_ASSERT_EQUAL_UINT8(MB_ERR_INVALID_SLAVE_ID, mbParsearLectura(rsp, n, 2, 3, 2, out));
+  TEST_ASSERT_EQUAL_UINT8(MB_ERR_INVALID_FUNCTION, mbParsearLectura(rsp, n, 1, 4, 2, out));
+  TEST_ASSERT_EQUAL_UINT8(MB_ERR_RESPONSE_TIMED_OUT, mbParsearLectura(rsp, 2, 1, 3, 2, out));
+  rsp[n - 1] ^= 0xFF;
+  TEST_ASSERT_EQUAL_UINT8(MB_ERR_INVALID_CRC, mbParsearLectura(rsp, n, 1, 3, 2, out));
+}
+
+void test_rtu_parsea_excepcion() {
+  uint8_t rsp[8] = {0x01, 0x83, 0x02};
+  size_t n = conCrc(rsp, 3);
+  uint16_t out[1];
+  TEST_ASSERT_EQUAL_UINT8(MB_ERR_ILLEGAL_DATA_ADDRESS, mbParsearLectura(rsp, n, 1, 3, 1, out));
+}
+
+void test_rtu_escritura_simple_eco() {
+  uint8_t req[8];
+  TEST_ASSERT_EQUAL_UINT(8, mbArmarEscrituraSimple(1, 0x0200, 5, req));
+  TEST_ASSERT_EQUAL_UINT8(0x06, req[1]);
+  TEST_ASSERT_EQUAL_UINT8(MB_ERR_SUCCESS, mbParsearEscrituraSimple(req, 8, req));
+
+  uint8_t otro[8];
+  mbArmarEscrituraSimple(1, 0x0200, 6, otro);
+  TEST_ASSERT_EQUAL_UINT8(MB_ERR_INVALID_FUNCTION, mbParsearEscrituraSimple(otro, 8, req));
+
+  uint8_t exc[8] = {0x01, 0x86, 0x02};
+  size_t n = conCrc(exc, 3);
+  TEST_ASSERT_EQUAL_UINT8(MB_ERR_ILLEGAL_DATA_ADDRESS, mbParsearEscrituraSimple(exc, n, req));
+}
+
+extern "C" void app_main() {
+  vTaskDelay(pdMS_TO_TICKS(2000));
+  UNITY_BEGIN();
+  RUN_TEST(test_s16_negativo);
+  RUN_TEST(test_u32_orden_palabras);
+  RUN_TEST(test_s32_negativo);
+  RUN_TEST(test_f32_ieee);
+  RUN_TEST(test_escala);
+  RUN_TEST(test_palabras_de_tipo);
+  RUN_TEST(test_parsear_numero);
+  RUN_TEST(test_parsear_tipo_y_orden);
+  RUN_TEST(test_nombres_error);
+  RUN_TEST(test_rtu_arma_lectura_referencia);
+  RUN_TEST(test_rtu_arma_lectura_input);
+  RUN_TEST(test_rtu_parsea_lectura_valida);
+  RUN_TEST(test_rtu_detecta_errores_de_lectura);
+  RUN_TEST(test_rtu_parsea_excepcion);
+  RUN_TEST(test_rtu_escritura_simple_eco);
+  UNITY_END();
+}
