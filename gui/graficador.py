@@ -578,7 +578,9 @@ class DialogoExportar(tk.Toplevel):
             if not reales:
                 continue
             lo, hi = min(reales), max(reales)
-            rango = (hi - lo) or 1.0
+            # Un parpadeo de una cuenta (O2 208/209) no debe ocupar todo el alto:
+            # el rango mínimo es la mitad del valor, así esas series quedan casi planas.
+            rango = max(hi - lo, abs(hi) * 0.5) or 1.0
             tramo = []
             for t, v in _reducir(self.tiempos, vals, 0, len(vals), ancho):
                 if v is None:
@@ -591,8 +593,8 @@ class DialogoExportar(tk.Toplevel):
                 c.create_line(*tramo, fill=r["color"])
         # Fuera del tramo: sombreado. Dentro: borde y manijas.
         xd, xh = self._x_de(self.desde), self._x_de(self.hasta)
-        c.create_rectangle(self.MARGEN, arriba - 4, xd, abajo + 4, fill="#000", stipple="gray25", outline="")
-        c.create_rectangle(xh, arriba - 4, self.MARGEN + ancho, abajo + 4, fill="#000", stipple="gray25",
+        c.create_rectangle(self.MARGEN, arriba - 4, xd, abajo + 4, fill="#556", stipple="gray12", outline="")
+        c.create_rectangle(xh, arriba - 4, self.MARGEN + ancho, abajo + 4, fill="#556", stipple="gray12",
                            outline="")
         c.create_rectangle(xd, arriba - 4, xh, abajo + 4, outline="#1f5f9f", width=2)
         for x in (xd, xh):
@@ -659,7 +661,11 @@ class App(tk.Tk):
         icono = Path(__file__).resolve().parent / "graficador.ico"
         if icono.exists():
             self.iconbitmap(default=str(icono))
-        self.geometry("1200x760")
+        # Tamaño inicial según la pantalla: con el escalado de Windows (125-150 %)
+        # un tamaño fijo deja fuera de la vista lo de abajo del panel izquierdo.
+        ancho = min(int(self.winfo_screenwidth() * 0.92), 1700)
+        alto = int(self.winfo_screenheight() * 0.85)
+        self.geometry(f"{ancho}x{alto}+20+10")
         self.minsize(900, 560)
 
         self.enlace = Enlace()
@@ -713,6 +719,7 @@ class App(tk.Tk):
         ttk.Button(arriba, text="↻", width=3, command=self._refrescar_puertos).pack(side="left")
         self.btn_conectar = ttk.Button(arriba, text="Conectar", command=self._conectar_o_desconectar)
         self.btn_conectar.pack(side="left", padx=6)
+        ttk.Button(arriba, text="Exportar datos…", command=self._exportar_csv).pack(side="right")
         ttk.Label(arriba, textvariable=self.var_estado, foreground="#555").pack(side="left", padx=10)
 
         cuerpo = ttk.PanedWindow(self, orient="horizontal")
@@ -747,10 +754,15 @@ class App(tk.Tk):
         ttk.Label(cfg, text="lista o intervalos: 0,4,8-10,0x13", foreground="#888").grid(
             row=fila, column=1, sticky="w")
         fila += 1
-        e_ms = campo("Periodo (ms)", ttk.Entry(cfg, textvariable=self.var_ms, width=8))
+        ritmo = ttk.Frame(cfg)
+        e_ms = ttk.Entry(ritmo, textvariable=self.var_ms, width=8)
+        e_ms.pack(side="left")
         e_ms.bind("<KeyRelease>", lambda e: self._periodo_editado())
-        e_hz = campo("Frecuencia (Hz)", ttk.Entry(cfg, textvariable=self.var_hz, width=8))
+        ttk.Label(ritmo, text="  Frecuencia (Hz)").pack(side="left")
+        e_hz = ttk.Entry(ritmo, textvariable=self.var_hz, width=8)
+        e_hz.pack(side="left", padx=(4, 0))
         e_hz.bind("<KeyRelease>", lambda e: self._frecuencia_editada())
+        campo("Periodo (ms)", ritmo)
         ttk.Label(cfg, text="0 ms = lo más rápido posible", foreground="#888").grid(
             row=fila, column=1, sticky="w")
         fila += 1
@@ -765,12 +777,21 @@ class App(tk.Tk):
         ttk.Label(cfg, textvariable=self.var_maximo, foreground="#1f5f9f", wraplength=290,
                   justify="left").grid(row=fila, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
+        # Botones bajo la tabla: se empacan antes que ella para que, con la
+        # ventana baja, la tabla se achique y ellos no queden fuera de la vista.
+        acciones = ttk.Frame(izq)
+        acciones.pack(side="bottom", fill="x", pady=(4, 0))
+        ttk.Button(acciones, text="Todos", command=lambda: self._marcar_todos(True)).pack(side="left")
+        ttk.Button(acciones, text="Ninguno", command=lambda: self._marcar_todos(False)).pack(side="left", padx=4)
+        ttk.Button(acciones, text="Exportar datos…", command=self._exportar_csv).pack(side="right")
+        ttk.Button(acciones, text="Limpiar datos", command=self._limpiar_datos).pack(side="right", padx=4)
+
         # Tabla de registros
         tabla = ttk.LabelFrame(izq, text="Registros  (clic en ☑ = graficar · doble clic = editar)", padding=4)
         tabla.pack(fill="both", expand=True, pady=(8, 0))
         cols = ("g", "reg", "nombre", "tipo", "mult", "unidad", "crudo", "valor")
-        self.tree = ttk.Treeview(tabla, columns=cols, show="headings", height=14, selectmode="browse")
-        for c, t, w in (("g", "☑", 30), ("reg", "Reg", 50), ("nombre", "Nombre", 80), ("tipo", "Tipo", 42),
+        self.tree = ttk.Treeview(tabla, columns=cols, show="headings", height=6, selectmode="browse")
+        for c, t, w in (("g", "☑", 30), ("reg", "Reg", 92), ("nombre", "Nombre", 80), ("tipo", "Tipo", 42),
                         ("mult", "Mult", 52), ("unidad", "Unidad", 58), ("crudo", "Crudo", 56),
                         ("valor", "Valor", 66)):
             self.tree.heading(c, text=t)
@@ -781,12 +802,6 @@ class App(tk.Tk):
         self.tree.configure(yscrollcommand=sb.set)
         self.tree.bind("<Button-1>", self._clic_tabla)
         self.tree.bind("<Double-1>", self._doble_clic_tabla)
-        acciones = ttk.Frame(izq)
-        acciones.pack(fill="x", pady=(4, 0))
-        ttk.Button(acciones, text="Todos", command=lambda: self._marcar_todos(True)).pack(side="left")
-        ttk.Button(acciones, text="Ninguno", command=lambda: self._marcar_todos(False)).pack(side="left", padx=4)
-        ttk.Button(acciones, text="Exportar datos…", command=self._exportar_csv).pack(side="right")
-        ttk.Button(acciones, text="Limpiar datos", command=self._limpiar_datos).pack(side="right", padx=4)
 
         # Controles del gráfico
         ctrl = ttk.Frame(der)
@@ -801,15 +816,24 @@ class App(tk.Tk):
         ttk.Button(ctrl, text="Todo", width=5, command=self._ver_todo).pack(side="left", padx=1)
         ttk.Button(ctrl, text="−", width=3, command=lambda: self.zoom(1.5, 1.0)).pack(side="left", padx=(8, 1))
         ttk.Button(ctrl, text="+", width=3, command=lambda: self.zoom(1 / 1.5, 1.0)).pack(side="left", padx=1)
-        ttk.Checkbutton(ctrl, text="Paneles separados", variable=self.var_paneles,
+        # Segunda fila: cómo se dibuja (paneles, crudo, eje Y).
+        ctrl2 = ttk.Frame(der)
+        ctrl2.pack(fill="x", pady=(4, 0))
+        ttk.Checkbutton(ctrl2, text="Paneles separados", variable=self.var_paneles,
+                        command=self.pedir_redibujo).pack(side="left")
+        ttk.Checkbutton(ctrl2, text="Ver crudo", variable=self.var_crudo,
                         command=self.pedir_redibujo).pack(side="left", padx=(12, 0))
-        ttk.Checkbutton(ctrl, text="Ver crudo", variable=self.var_crudo,
-                        command=self.pedir_redibujo).pack(side="left", padx=(12, 0))
-        ttk.Checkbutton(ctrl, text="Y auto", variable=self.var_y_auto, command=self.pedir_redibujo).pack(
+        ttk.Checkbutton(ctrl2, text="Y auto", variable=self.var_y_auto, command=self.pedir_redibujo).pack(
             side="left", padx=(12, 2))
-        ttk.Entry(ctrl, textvariable=self.var_y_min, width=7).pack(side="left")
-        ttk.Label(ctrl, text="a").pack(side="left", padx=2)
-        ttk.Entry(ctrl, textvariable=self.var_y_max, width=7).pack(side="left")
+        ttk.Label(ctrl2, text="(si no: de").pack(side="left")
+        e_ymin = ttk.Entry(ctrl2, textvariable=self.var_y_min, width=7)
+        e_ymin.pack(side="left", padx=2)
+        ttk.Label(ctrl2, text="a").pack(side="left")
+        e_ymax = ttk.Entry(ctrl2, textvariable=self.var_y_max, width=7)
+        e_ymax.pack(side="left", padx=2)
+        ttk.Label(ctrl2, text=")").pack(side="left")
+        for e in (e_ymin, e_ymax):
+            e.bind("<Return>", lambda _e: self.pedir_redibujo())
 
         self.grafico = Grafico(der, self)
         self.grafico.pack(fill="both", expand=True, pady=(4, 0))
