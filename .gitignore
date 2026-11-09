@@ -7,3 +7,7 @@ sdkconfig.esp32dev
 sdkconfig.test
 sdkconfig.old
 managed_components/
+capturas/
+
+# Factura de compra: datos personales y bancarios, no va al repositorio.
+Datasheets/ComprasRika1.pdf

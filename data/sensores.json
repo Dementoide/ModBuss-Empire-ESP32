@@ -13,5 +13,17 @@
     "variables": [
       {"etiqueta": "Radiacion PAR", "reg": 0, "size": 2, "mult": 1.0, "off": 0.0, "uni": "umol/m2s"}
     ]
+  },
+  {
+    "nombre": "Rika RK300-08",
+    "reg_id_config": 15,
+    "variables": [
+      {"etiqueta": "SO2", "reg": 0, "fn": 3, "tipo": "u16", "mult": 0.01, "off": 0, "uni": "ppm"},
+      {"etiqueta": "CO2", "reg": 4, "fn": 3, "tipo": "u16", "mult": 1, "off": 0, "uni": "ppm"},
+      {"etiqueta": "PM2.5", "reg": 8, "fn": 3, "tipo": "u16", "mult": 1, "off": 0, "uni": "ug/m3"},
+      {"etiqueta": "PM10", "reg": 9, "fn": 3, "tipo": "u16", "mult": 1, "off": 0, "uni": "ug/m3"},
+      {"etiqueta": "PM1.0", "reg": 10, "fn": 3, "tipo": "u16", "mult": 1, "off": 0, "uni": "ug/m3"},
+      {"etiqueta": "O2", "reg": 19, "fn": 3, "tipo": "u16", "mult": 0.1, "off": 0, "uni": "%VOL"}
+    ]
   }
 ]
