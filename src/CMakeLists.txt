@@ -5,6 +5,7 @@ idf_component_register(
        modbus_rtu.cpp
        consola.cpp
        almacen.cpp
+       flujo.cpp
   INCLUDE_DIRS . ${CMAKE_SOURCE_DIR}/include
   REQUIRES esp_driver_uart esp_driver_gpio esp_timer vfs littlefs
 )

@@ -29,6 +29,7 @@
 #include "modbus_rtu.h"
 #include "consola.h"
 #include "almacen.h"
+#include "flujo.h"
 
 #define RX_PIN 39
 #define TX_PIN 33
@@ -616,11 +617,19 @@ static void diagnosticoBus()
   }
 }
 
+// Líneas '@' de la interfaz gráfica: muestrean con la ID/baud de la sesión por
+// defecto y devuelven el bus a su baudrate.
+static void atenderComando(const std::string& linea)
+{
+  flujoComando(linea, g_id, g_baud);
+}
+
 // ---------------------------------------------------------------------------
 
 extern "C" void app_main()
 {
   consolaIniciar();
+  consolaFijarManejador(atenderComando);
   configurarSalida(RS485_PWR_PIN);
   configurarSalida(SENSOR_PWR_PIN);
   controlPin(RS485_PWR_PIN, LOGICA_RS485_INVERSA, true);

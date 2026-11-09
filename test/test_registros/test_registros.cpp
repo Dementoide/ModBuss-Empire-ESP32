@@ -11,6 +11,7 @@
 #include "registros.h"
 #include "modbus_error.h"
 #include "modbus_rtu.h"
+#include "lista_registros.h"
 
 void setUp() {}
 void tearDown() {}
@@ -155,6 +156,61 @@ void test_rtu_escritura_simple_eco() {
   TEST_ASSERT_EQUAL_UINT8(MB_ERR_ILLEGAL_DATA_ADDRESS, mbParsearEscrituraSimple(exc, n, req));
 }
 
+// --- Lista de registros y bloques ----------------------------------------
+
+void test_lista_registros_mixta() {
+  std::vector<uint16_t> r;
+  TEST_ASSERT_TRUE(parsearListaRegistros("0,4,8-10,0x13", &r, 64));
+  const uint16_t esperado[] = {0, 4, 8, 9, 10, 19};
+  TEST_ASSERT_EQUAL_UINT(6, r.size());
+  TEST_ASSERT_EQUAL_UINT16_ARRAY(esperado, r.data(), 6);
+}
+
+void test_lista_registros_orden_y_repetidos() {
+  std::vector<uint16_t> r;
+  TEST_ASSERT_TRUE(parsearListaRegistros("19, 4 ,4,2-3", &r, 64));
+  const uint16_t esperado[] = {19, 4, 2, 3};
+  TEST_ASSERT_EQUAL_UINT(4, r.size());
+  TEST_ASSERT_EQUAL_UINT16_ARRAY(esperado, r.data(), 4);
+}
+
+void test_lista_registros_invalida() {
+  std::vector<uint16_t> r;
+  TEST_ASSERT_FALSE(parsearListaRegistros("", &r, 64));
+  TEST_ASSERT_FALSE(parsearListaRegistros("5-2", &r, 64));
+  TEST_ASSERT_FALSE(parsearListaRegistros("1,,2", &r, 64));
+  TEST_ASSERT_FALSE(parsearListaRegistros("70000", &r, 64));
+  TEST_ASSERT_FALSE(parsearListaRegistros("0-64", &r, 64));   // 65 registros
+  TEST_ASSERT_FALSE(parsearListaRegistros("3a", &r, 64));
+}
+
+void test_agrupar_bloques_con_hueco() {
+  std::vector<uint16_t> r = {19, 0, 4, 8, 9, 10};
+  std::vector<BloqueLectura> b;
+  agruparBloques(r, 16, 125, &b);
+  TEST_ASSERT_EQUAL_UINT(1, b.size());
+  TEST_ASSERT_EQUAL_UINT16(0, b[0].inicio);
+  TEST_ASSERT_EQUAL_UINT16(20, b[0].cant);
+  agruparBloques(r, 0, 125, &b);
+  TEST_ASSERT_EQUAL_UINT(4, b.size());   // 0 | 4 | 8-10 | 19
+  TEST_ASSERT_EQUAL_UINT16(8, b[2].inicio);
+  TEST_ASSERT_EQUAL_UINT16(3, b[2].cant);
+}
+
+void test_agrupar_bloques_respeta_tope() {
+  std::vector<uint16_t> r = {0, 200};
+  std::vector<BloqueLectura> b;
+  agruparBloques(r, 300, 125, &b);
+  TEST_ASSERT_EQUAL_UINT(2, b.size());
+}
+
+void test_tiempos_de_trama() {
+  // 20 registros a 9600: (13 + 40) bytes * 10 bits / 9600 = 55,2 ms.
+  TEST_ASSERT_FLOAT_WITHIN(0.1, 55.2, msTramaLectura(20, 9600));
+  TEST_ASSERT_EQUAL_UINT32(5, msSilencioEntreTramas(9600));
+  TEST_ASSERT_EQUAL_UINT32(16, msSilencioEntreTramas(2400));
+}
+
 extern "C" void app_main() {
   vTaskDelay(pdMS_TO_TICKS(2000));
   UNITY_BEGIN();
@@ -173,5 +229,11 @@ extern "C" void app_main() {
   RUN_TEST(test_rtu_detecta_errores_de_lectura);
   RUN_TEST(test_rtu_parsea_excepcion);
   RUN_TEST(test_rtu_escritura_simple_eco);
+  RUN_TEST(test_lista_registros_mixta);
+  RUN_TEST(test_lista_registros_orden_y_repetidos);
+  RUN_TEST(test_lista_registros_invalida);
+  RUN_TEST(test_agrupar_bloques_con_hueco);
+  RUN_TEST(test_agrupar_bloques_respeta_tope);
+  RUN_TEST(test_tiempos_de_trama);
   UNITY_END();
 }

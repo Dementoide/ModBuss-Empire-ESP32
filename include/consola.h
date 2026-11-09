@@ -11,6 +11,11 @@
 
 void consolaIniciar();
 
+// Las líneas que empiezan con '@' no las recibe el menú: van a este manejador
+// (protocolo de la interfaz gráfica, flujo.h) y leerLinea sigue esperando.
+using ManejadorComando = void (*)(const std::string& linea);
+void consolaFijarManejador(ManejadorComando manejador);
+
 // Bloquea hasta recibir una línea; la devuelve sin espacios en los extremos.
 std::string leerLinea();
 

@@ -122,6 +122,12 @@ bool mbIniciar(uint32_t baud, int tx, int rx, int de)
   return true;
 }
 
+bool mbFijarBaud(uint32_t baud)
+{
+  if (!uart_is_driver_installed(kUartBus)) return false;
+  return uart_set_baudrate(kUartBus, baud) == ESP_OK;
+}
+
 void mbFijarTimeoutMs(uint32_t ms)
 {
   s_timeoutMs = ms;

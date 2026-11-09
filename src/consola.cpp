@@ -11,6 +11,12 @@
 #include <freertos/task.h>
 
 static constexpr uart_port_t kUartConsola = UART_NUM_0;
+static ManejadorComando s_manejador = nullptr;
+
+void consolaFijarManejador(ManejadorComando manejador)
+{
+  s_manejador = manejador;
+}
 
 void consolaIniciar()
 {
@@ -29,7 +35,8 @@ static std::string recortar(const std::string& s)
   return s.substr(a, b - a + 1);
 }
 
-std::string leerLinea()
+// Una línea cruda, sin recortar ni repetir.
+static std::string leerLineaCruda()
 {
   // CRLF: el LF que sigue a un CR ya cerró la línea anterior y no es una vacía.
   static char ultimoFin = 0;
@@ -50,9 +57,20 @@ std::string leerLinea()
     }
     if (c >= 0x20) linea.push_back((char)c);
   }
-  linea = recortar(linea);
-  printf("> %s\n", linea.c_str());
   return linea;
+}
+
+std::string leerLinea()
+{
+  while (true) {
+    std::string linea = recortar(leerLineaCruda());
+    if (!linea.empty() && linea[0] == '@' && s_manejador != nullptr) {
+      s_manejador(linea);
+      continue;
+    }
+    printf("> %s\n", linea.c_str());
+    return linea;
+  }
 }
 
 bool hayEntrada()

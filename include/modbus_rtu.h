@@ -38,6 +38,9 @@ uint8_t mbParsearEscrituraSimple(const uint8_t* rsp, size_t largo, const uint8_t
 // abierto. `de` es el pin RE/DE del transceptor (alto = transmitir).
 bool mbIniciar(uint32_t baud, int tx, int rx, int de);
 
+// Cambia el baudrate del bus ya abierto. false si no está abierto.
+bool mbFijarBaud(uint32_t baud);
+
 // Tope de espera del primer byte de la respuesta (por defecto 1000 ms).
 void mbFijarTimeoutMs(uint32_t ms);
 
