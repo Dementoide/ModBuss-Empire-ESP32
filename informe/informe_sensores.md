@@ -10,6 +10,7 @@ valor.
 | [RK300-08](#rk300-08--multigás) | Rika | **No**: mapa distinto en los 3 documentos | Verificado 2026-11-09, con reclamo pendiente |
 | [RK300-02](#rk300-02--polvo-pm10--pm25--pm10) | Rika | Sí, con el orden del ejemplo 7.4; los ejemplos 7.1–7.3 están mal | Verificado 2026-11-10 |
 | [RK200-02B](#rk200-02b--radiación) | Rika | Sí, en la medición; el cambio de ID no necesita reinicio aunque el datasheet lo pida | Verificado 2026-11-10 |
+| [RS-PM-N01-2 (-T)](#renke-rs-pm-n01-2--polvo-pm25--pm10--pm10) | Renke | Sí, en la medición; el cambio de ID (reg 2000) no está en el manual pero funciona | Verificado 2026-11-10 |
 
 ## Cómo se prueba y cómo leer las tablas
 
@@ -365,3 +366,84 @@ ultrasónico.
 **Conclusión:** de lo comprado, la unidad mide CO₂, O₂ y PM1.0/2.5/10, en registros distintos
 a los del datasheet. **El SO₂ no aparece.** Queda en `sensores.json` con el mapa medido, y el
 SO₂ en el registro 0 sin confirmar.
+
+---
+
+## Renke RS-PM-N01-2 — Polvo (PM2.5 / PM10 / PM1.0)
+
+**Compra:** modelo según el vendedor "RS-PM-*-2-T". Se esperaba PM2.5 y PM10; también entrega
+PM1.0.
+
+**Datasheet:** `Datasheets/RS-PM-N01-2_renke-cn-manual-V2.2_PM2.5,PM10,PM1.pdf`. Es el manual
+oficial de Renke, en chino, V2.2, versión 485; lo bajó el agente desde el CDN de Renke.
+
+- **Código del modelo:** RS = Renke, PM = calidad del aire, N01 = salida RS485, 2 = carcasa de
+  pared.
+- **"-T":** no aparece en ningún documento. Es un sufijo del sitio en inglés que Renke agrega a
+  muchos modelos.
+- **Variante con temperatura y humedad:** se llama **RS-PMWS-**, con otro mapa (humedad en el
+  0, temperatura en el 1, PM desde el 2). **Esta unidad es la variante PM sola.**
+- **Del manual:** cables marrón V+ (10–30 V), negro GND, amarillo 485-A y azul 485-B;
+  precalentamiento ≤ 2 min; rango 0–1000 µg/m³.
+
+**Unidad probada:** el 2026-11-10, con un fósforo.
+
+### Comunicación
+
+| Parámetro | Valor | ¿Coincide con el manual? |
+|---|---|---|
+| ID | 1 | Sí |
+| Serie | **4800 baud**, 8N1 | Sí. **Ojo: los Rika van a 9600.** |
+| Lectura | Función 03; la 04 devuelve lo mismo | Sí. La tabla admite 03 y 04, aunque el texto dice "solo 03". |
+| Máximo por lectura | 0–63 en una trama sin problema | El manual no lo indica |
+| Actualización | 1 vez por segundo | El manual pide un intervalo de sondeo ≥ 200 ms |
+| Respuesta al humo | Sube en ~4 s y llega al máximo en ~12 s | El manual dice ≤ 90 s |
+
+### Registros
+
+| Reg | Variable | Tipo | Conversión | Unidad | Reposo → fósforo | Cómo se sabe |
+|---|---|---|---|---|---|---|
+| **0 (0x0000)** | **PM2.5** | u16 | × 1 | µg/m³ | 5 → 845 | **Confirmado con estímulo** + manual |
+| **1 (0x0001)** | **PM10** | u16 | × 1 | µg/m³ | 6–16 → 1435 | **Confirmado con estímulo** + manual |
+| **2 (0x0002)** | **PM1.0** | u16 | × 1 | µg/m³ | 0–4 → 284 | **Confirmado con estímulo** + manual |
+| 9 (0x0009) | ? | u16 | — | — | 7686 (`0x1E06`) | Sin identificar (constante) |
+| 82 / 83 / 84 | Calibración PM10 / PM2.5 / PM1.0 | u16 | ÷ 10 | µg/m³ | 0 / 0 / 0 | Manual (R/W con 06/10). **No tocar.** |
+| 256–257 (0x100) | ? | — | — | — | `0x3F99 0x999A` (como float ABCD = 1,2) | Sin identificar (¿factor de calibración?) |
+| **2000 (0x07D0)** | **Dirección del esclavo** | u16 | — | — | 1 | **Probado**: se cambió a 2 y la lectura lo reflejó. El manual no lo trae. |
+| 2001 (0x07D1) | Baudrate (código) | u16 | — | — | 1 = 4800 | Deducido, por el esquema habitual de Renke (0 = 2400, 1 = 4800, 2 = 9600). No probado. |
+
+**Cómo se identificó:** en las 600 muestras se cumple siempre **PM1.0 ≤ PM2.5 ≤ PM10**, y los
+tres suben y bajan juntos con el humo.
+
+**Cómo calcular:** el valor es el crudo directamente, en µg/m³. Por ejemplo, el reg 0 = 85 →
+**PM2.5 = 85 µg/m³**.
+
+### Cambio de ID
+
+**Probado el 2026-11-10: funciona, aunque el manual no lo documenta.**
+
+- **Cómo se hace:** función 06 en el registro **2000 (0x07D0)** con la ID nueva.
+- **Respuesta:** eco estándar.
+- **Efecto:** rige al instante, sin reiniciar.
+- **Prueba:** se cambió 1 → 2, se comprobó que respondía la 2 (con el registro 2000 = 2) y no la
+  1, y se volvió 2 → 1.
+- **Según el manual,** la dirección y el baudrate se cambian con el software "485参数配置软件"
+  de Renke.
+
+### Observaciones
+
+- **PM10 en niveles bajos:** con concentraciones bajas, el PM10 salta entre PM2.5 + 1 y
+  PM2.5 + 10. Con humo, la diferencia es real y variable. A niveles de aire limpio, el PM10 de
+  este sensor no aporta más que el PM2.5.
+- **Satura sobre el rango:** PM10 llegó a 1435 µg/m³, por sobre el rango de 1000 del manual.
+- **Erratas del manual:** en los ejemplos de PM, el conteo de bytes dice 0x04 cuando son 6 bytes
+  (0x06); y dos conversiones están mal escritas (0x52 = 82, no 80; 0x4A = 74, no "009CH").
+
+**Evidencia:**
+
+- `informe/capturas/renke-rs-pm_fosforo_0-15.csv`: 3 min en reposo, registros 0–15.
+- `informe/capturas/renke-rs-pm_fosforo_0-2.csv`: 5 min, registros 0–2, fósforo en ~0:20.
+
+**Conclusión:** coincide con el manual. PM2.5, PM10 y PM1.0 están en los registros 0, 1 y 2, en
+µg/m³ sin conversión, con ID 1 y **4800 baud**. Sí entrega PM1.0. Configurar el maestro a 4800,
+no a 9600 como los Rika.
