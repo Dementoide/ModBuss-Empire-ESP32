@@ -8,7 +8,7 @@ valor.
 |---|---|---|---|
 | [RK330-01](#rk330-01--temperatura-y-humedad) | Rika | Sí, en lo comprado (T y H) | Verificado 2026-11-10 |
 | [RK300-08](#rk300-08--multigás) | Rika | **No**: mapa distinto en los 3 documentos | Verificado 2026-11-09, con reclamo pendiente |
-| RK300-02 | Rika | — | Pendiente |
+| [RK300-02](#rk300-02--polvo-pm10--pm25--pm10) | Rika | Sí, con el orden del ejemplo 7.4; los ejemplos 7.1–7.3 están mal | Verificado 2026-11-10 |
 | RK200-02 | Rika | — | Pendiente |
 
 ## Cómo se prueba y cómo leer las tablas
@@ -96,6 +96,73 @@ y 0–100 %RH ±3 %RH.
 **Conclusión:** coincide con lo comprado. Temperatura (reg 0, s16 ÷ 10) y humedad (reg 1,
 u16 ÷ 10) están donde dice el datasheet. Además trae el punto de rocío en el registro 3, que el
 datasheet no menciona.
+
+---
+
+## RK300-02 — Polvo (PM1.0 / PM2.5 / PM10)
+
+**Compra:** factura R26101402, ítem 2: RK300-02, 2 unidades, con escudo de radiación RK95-01.
+Se compró **PM1.0, PM2.5 y PM10**, con rango 0–1000 µg/m³ y precisión ±10 %FS a 25 ℃. La
+etiqueta de la unidad dice 300-02B.
+
+**Datasheet:** `Datasheets/RK300-02_PM1,PM2.5,PM10.pdf` ("Dust Concentration Sensor User
+Manual" V5.0, rev. 20260112). Lo mandó el proveedor. Medición por dispersión láser,
+calentamiento de 3 min, respuesta < 1 s. Cables: rojo V+, negro V−, amarillo A, verde B.
+
+**Unidad probada:** 1 de las 2, el 2026-11-10, con dos fósforos.
+
+### Comunicación
+
+| Parámetro | Valor | ¿Coincide con el datasheet? |
+|---|---|---|
+| ID | 1 | Sí |
+| Serie | 9600 baud, 8N1 | Sí |
+| Lectura | Función 03 | Sí. La función 04 no responde. |
+| Máximo por lectura | 0–33 en una trama sin problema. Los registros sueltos 33 y 34 responden; el 40 y el 48 no. | El datasheet no lo indica |
+| Actualización | **1 vez por segundo** (cambios cada 1000 ms exactos) | El datasheet dice respuesta < 1 s |
+| Tiempo por muestra | 110 ms para 32 registros | — |
+
+### Registros
+
+| Reg | Variable | Tipo | Conversión | Unidad | Reposo → con fósforo | Cómo se sabe |
+|---|---|---|---|---|---|---|
+| **0 (0x0000)** | **PM1.0** | u16 | × 1 | µg/m³ | 1 → 58 | **Confirmado con estímulo** |
+| **1 (0x0001)** | **PM2.5** | u16 | × 1 | µg/m³ | 3 → 93 | **Confirmado con estímulo** |
+| **2 (0x0002)** | **PM10** | u16 | × 1 | µg/m³ | 3 → 119 | **Confirmado con estímulo** |
+| 3 (0x0003) | Copia del PM10 (¿TSP?) | u16 | × 1 | µg/m³ | igual al reg 2 en las 360 muestras | Deducido |
+| 4, 5, 7 | ¿Tope de rango? | u16 | — | — | 1000 | Deducido; coincide con el rango 0–1000 µg/m³ |
+| 12 / 13 | ? | u16 | — | — | 10 / 30 | Sin identificar (constantes) |
+| 14 (0x000E) | ¿Dirección del esclavo? | u16 | — | — | 1 | Deducido (igual a la ID) |
+| 15 / 16 / 17 | ¿Número de serie? | u16 | — | — | `0x4567` / `0x8901` / `0x23AB` | Sin identificar (constantes) |
+| 19, 21, 34 | ? | u16 | — | — | 1000 | Sin identificar (constantes) |
+| 27 / 28 | ? | u16 | — | — | 1 / 2 | Sin identificar (constantes) |
+| 30 / 31 / 32 | ? | u16 | — | — | 48 / 49 / 50 (`0x30` / `0x31` / `0x32`) | Sin identificar. El `0x30` es la dirección que el datasheet da para el registro de dirección del esclavo |
+| 6, 8–11, 18, 20, 22–26, 29, 33 | — | — | — | — | 0 | — |
+
+**Cómo se identificó:** en las 360 muestras se cumple siempre **reg 0 ≤ reg 1 ≤ reg 2**. Ese
+es el orden físico PM1.0 ≤ PM2.5 ≤ PM10, y los tres suben y bajan juntos con el humo.
+
+**Cómo calcular:** el valor es el crudo directamente, en µg/m³. Por ejemplo, el reg 1 = 93 →
+**PM2.5 = 93 µg/m³**.
+
+### Diferencias con el datasheet
+
+- **Ejemplos contradictorios:** los ejemplos 7.1 y 7.2 leen el registro 0 y lo llaman PM2.5 y
+  PM10; el 7.3 pone PM2.5 en el 0. **El correcto es el 7.4** ("three in one"): PM1.0 en el 0,
+  PM2.5 en el 1 y PM10 en el 2.
+- **Registros sin documentar:** el datasheet no menciona el registro 3 (copia del PM10) ni los
+  registros de configuración y constantes del 4 al 34.
+- **Dirección del esclavo:** según el datasheet se cambia escribiendo con función 06 en el
+  **0x0030 (48)**, distinto del RK300-08, que usa el 15. Leer el 48 no responde.
+  **No probado.** Si se olvida la ID, se puede usar la dirección de difusión `0xFE` con el
+  sensor solo en el bus.
+- **Baudrate y paridad:** el datasheet no trae registros para cambiarlos.
+
+**Evidencia:** `informe/capturas/rk300-02_fosforo_0-31.csv`: 3 min, registros 0–31, cada
+500 ms, con dos fósforos. El primero se ve en ~0:20–1:10 y el segundo en ~1:39–2:00.
+
+**Conclusión:** coincide con lo comprado. PM1.0, PM2.5 y PM10 están en los registros 0, 1 y 2,
+en µg/m³ sin conversión, como dice el ejemplo 7.4 del datasheet.
 
 ---
 
