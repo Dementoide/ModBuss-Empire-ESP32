@@ -9,7 +9,7 @@ valor.
 | [RK330-01](#rk330-01--temperatura-y-humedad) | Rika | Sí, en lo comprado (T y H) | Verificado 2026-11-10 |
 | [RK300-08](#rk300-08--multigás) | Rika | **No**: mapa distinto en los 3 documentos | Verificado 2026-11-09, con reclamo pendiente |
 | [RK300-02](#rk300-02--polvo-pm10--pm25--pm10) | Rika | Sí, con el orden del ejemplo 7.4; los ejemplos 7.1–7.3 están mal | Verificado 2026-11-10 |
-| RK200-02 | Rika | — | Pendiente |
+| [RK200-02B](#rk200-02b--radiación) | Rika | Sí, en la medición; el cambio de ID no necesita reinicio aunque el datasheet lo pida | Verificado 2026-11-10 |
 
 ## Cómo se prueba y cómo leer las tablas
 
@@ -28,7 +28,13 @@ valor.
   4. **Probar el cambio de ID:** cambiarla a 2, comprobar que responde la 2 y no la 1, y
      volver a 1. Se usa la opción "Cambiar ID del sensor" de la consola, con el registro que
      indique el datasheet.
-- **Conversión:** `valor = crudo_con_signo × multiplicador + offset`. Es la
+- **Conversión:** `valor = crudo_con_signo × multiplicador + offset`.
+- **Patrón común a los Rika probados:**
+  - Los registros 30–32 guardan las **direcciones de los registros de configuración**: RK200-02B
+    66 y 64 (dirección y baudrate); RK330-01 128 y 129 (baudrate y paridad); RK300-02 48 en
+    adelante (dirección).
+  - El registro 13 guarda el baudrate escrito en hex (`0x9600`).
+  - Sirve para ubicar el registro de cambio de ID cuando el datasheet no lo dice o se contradice. Es la
   misma fórmula que usa `data/sensores.json` (campos `mult` y `off`).
 - **Cómo se sabe cada registro:**
   - **Confirmado con estímulo:** se provocó un cambio (aliento, fósforo,
@@ -103,6 +109,93 @@ y 0–100 %RH ±3 %RH.
 **Conclusión:** coincide con lo comprado. Temperatura (reg 0, s16 ÷ 10) y humedad (reg 1,
 u16 ÷ 10) están donde dice el datasheet. Además trae el punto de rocío en el registro 3, que el
 datasheet no menciona.
+
+---
+
+## RK200-02B — Radiación
+
+**Compra:** factura R26101402, ítem 3: RK200-02 (RK200-02B), 2 unidades. Rango espectral
+0–2000 W/m², precisión ±5 % de la lectura, respuesta ≤ 1 s.
+
+**Qué es la "B":** según las fichas de Rika, el RK200-02 tiene dos tipos.
+
+- **Tipo A:** PAR real, 400–700 nm, 0–2500 **µmol/m²·s**.
+- **Tipo B:** radiación de 350–1100 nm, 0–2000 **W/m²**. Es el comprado.
+
+A pesar del nombre comercial "PAR", el tipo B **no entrega PPFD en µmol/m²·s** sino
+irradiancia en W/m².
+
+- Ficha V5.0 (2025): `Datasheets/RK200-02_rika-spec-v5.0_PAR.pdf`
+- Ficha V3.0 del B: `Datasheets/RK200-02B_opengrow-spec-v3.0_PAR.pdf`
+
+En el código de pedido V5.0, la segunda letra es la alimentación y la tercera el rango. Una
+etiqueta que diga solo "02B" no distingue entre las dos. Si la etiqueta trae el código
+completo, el rango W/m² es una B en la tercera posición.
+
+**Datasheet del protocolo:** `Datasheets/RK200-02_PAR.pdf` ("RK200-02 Communication Protocol
+(MODBUS-RTU)", 1 página, sin letra de variante). Corresponde al tipo B: da la radiación en
+W/m².
+
+**Unidad probada:** 1 de las 2, el 2026-11-10, con la linterna del celular, tapándolo y
+apuntándolo a una ventana.
+
+### Comunicación
+
+| Parámetro | Valor | ¿Coincide con el datasheet? |
+|---|---|---|
+| ID | **9** (de fábrica) | Sí |
+| Serie | 9600 baud, 8N1 | Sí |
+| Lectura | Función **04** (input). La función 03 devuelve los mismos valores. | Sí: el datasheet indica 04 |
+| Máximo por lectura | 0–31 en una trama; 0–63 no responde | El datasheet no lo indica |
+| Tiempo por muestra | 109 ms para 32 registros | — |
+
+### Registros
+
+| Reg | Variable | Tipo | Conversión | Unidad | Oscuro → linterna | Cómo se sabe |
+|---|---|---|---|---|---|---|
+| **0 (0x0000)** | **Radiación** | u16 | × 1 | **W/m²** | 0 → 15 | **Confirmado con estímulo** + datasheet |
+| 1 (0x0001) | Copia de la radiación | u16 | × 1 | W/m² | igual al reg 0 en las 300 muestras | Deducido |
+| 2 (0x0002) | ? (sigue a la luz) | u16 | — | — | 1 → 22 | **Sin identificar**: sube y baja con la luz, pero no es proporcional al reg 0 (1 en oscuridad; entre 1,25 y 6 veces el reg 0) |
+| 12 (0x000C) | ? | u16 | — | — | 9 | Sin identificar. **No es la dirección activa**: siguió en 9 con la ID cambiada a 2 |
+| 13 (0x000D) | Baudrate | u16 en hex "BCD" | — | — | `0x9600` | Deducido; igual que en el RK330-01 |
+| 20 | Tope del rango | u16 | × 1 | W/m² | 2000 | Deducido; coincide con 0–2000 W/m² |
+| 21 / 22 / 25 / 26 / 27 / 28 | ? | — | — | — | 2001 / 150 / 4 / 1 / 1000 / −5 (s16) | Sin identificar (constantes) |
+| 30 / 31 | Dirección de los registros de configuración | u16 | — | — | 66 (`0x42`) / 64 (`0x40`) | Deducido: el 66 es el registro de la dirección y el 64 el del baudrate, según el datasheet |
+
+**Cómo calcular:** el valor es el crudo directamente, en W/m². Por ejemplo, el reg 0 = 296 →
+**296 W/m²**, que es el ejemplo del datasheet (`09 04 02 01 28 …`).
+
+**Para PPFD:** el sensor no lo entrega. Las fichas dan sensibilidades analógicas de 1000 µV por
+W/m² (tipo B) y 800 µV por µmol/m²·s (tipo A), lo que sugiere unos 1,25 µmol/m²·s por W/m².
+**No es un dato del protocolo**, y los dos tipos miden bandas espectrales distintas; no usarlo
+sin calibrar.
+
+### Cambio de ID
+
+**Probado el 2026-11-10: funciona, con una diferencia respecto del datasheet.**
+
+- **Cómo se hace:** función 06 en el registro **0x0042 (66)** con la ID nueva (0–255).
+- **Respuesta:** eco estándar, así que la opción "Cambiar ID" de ModbusEmpire lo da por exitoso.
+- **Diferencia con el datasheet:** el documento dice que el cambio se aplica después de
+  reiniciar, pero **rige al instante**. Se cambió 9 → 2, respondió la 2 y no la 9, y se volvió
+  2 → 9.
+- **Reinicio:** no se probó qué ID tiene el sensor al reiniciarlo después de un cambio.
+- **Baudrate:** según el datasheet, se cambia con 06 en el registro **0x0040 (64)**, por
+  código: 0=1200, 1=2400, 2=4800, 3=9600, 4=19200, 5=38400, 6=57600, 7=115200. No probado.
+- **ID olvidada:** el datasheet indica usar la dirección de difusión **0x00**, con el sensor
+  solo en el bus. No probado.
+
+**Evidencia:** `informe/capturas/rk200-02b_luz_0-31.csv`: 2,5 min, registros 0–31, cada
+500 ms.
+
+- **Linterna:** desde 1:22, hasta 15 W/m².
+- **Tapado:** desde 1:34, 0 W/m².
+- **Ventana:** cerca de 1:50, 2 W/m² con luz indirecta.
+
+**Conclusión:** coincide con lo comprado (tipo B, en W/m²). La radiación está en el registro 0,
+en W/m² sin conversión, con función 04, ID 9 y 9600. Queda sin identificar el registro 2, que
+también sigue a la luz. Para ver si es otra magnitud, hay que probarlo con sol directo, que da
+cientos de W/m².
 
 ---
 
