@@ -21,6 +21,13 @@ valor.
   - **u16:** entero sin signo de 16 bits (0..65535).
   - **s16:** entero con signo en complemento a dos. Si el crudo es ≥ 32768, el
     valor es `crudo − 65536`. Por ejemplo, `0xFE70` = 65136 → −400.
+- **Procedimiento por sensor:**
+  1. Sondear qué registros responden y hasta dónde.
+  2. Provocar cambios (aliento, fósforo, humidificador, luz) con el muestreo grabando.
+  3. Comparar con el datasheet.
+  4. **Probar el cambio de ID:** cambiarla a 2, comprobar que responde la 2 y no la 1, y
+     volver a 1. Se usa la opción "Cambiar ID del sensor" de la consola, con el registro que
+     indique el datasheet.
 - **Conversión:** `valor = crudo_con_signo × multiplicador + offset`. Es la
   misma fórmula que usa `data/sensores.json` (campos `mult` y `off`).
 - **Cómo se sabe cada registro:**
@@ -132,7 +139,7 @@ calentamiento de 3 min, respuesta < 1 s. Cables: rojo V+, negro V−, amarillo A
 | 3 (0x0003) | Copia del PM10 (¿TSP?) | u16 | × 1 | µg/m³ | igual al reg 2 en las 360 muestras | Deducido |
 | 4, 5, 7 | ¿Tope de rango? | u16 | — | — | 1000 | Deducido; coincide con el rango 0–1000 µg/m³ |
 | 12 / 13 | ? | u16 | — | — | 10 / 30 | Sin identificar (constantes) |
-| 14 (0x000E) | ¿Dirección del esclavo? | u16 | — | — | 1 | Deducido (igual a la ID) |
+| 14 (0x000E) | ? | u16 | — | — | 1 | Sin identificar. **No es la dirección**: siguió en 1 con la ID cambiada a 2 |
 | 15 / 16 / 17 | ¿Número de serie? | u16 | — | — | `0x4567` / `0x8901` / `0x23AB` | Sin identificar (constantes) |
 | 19, 21, 34 | ? | u16 | — | — | 1000 | Sin identificar (constantes) |
 | 27 / 28 | ? | u16 | — | — | 1 / 2 | Sin identificar (constantes) |
@@ -152,10 +159,18 @@ es el orden físico PM1.0 ≤ PM2.5 ≤ PM10, y los tres suben y bajan juntos co
   PM2.5 en el 1 y PM10 en el 2.
 - **Registros sin documentar:** el datasheet no menciona el registro 3 (copia del PM10) ni los
   registros de configuración y constantes del 4 al 34.
-- **Dirección del esclavo:** según el datasheet se cambia escribiendo con función 06 en el
-  **0x0030 (48)**, distinto del RK300-08, que usa el 15. Leer el 48 no responde.
-  **No probado.** Si se olvida la ID, se puede usar la dirección de difusión `0xFE` con el
-  sensor solo en el bus.
+- **Cambio de ID: probado, funciona como dice el datasheet** (2026-11-10).
+  - **Cómo se hace:** función 06 en el registro **0x0030 (48)** con la ID nueva, distinto del
+    RK300-08, que usa el 15.
+  - **Respuesta:** el eco estándar de la función 06, así que la opción "Cambiar ID" de
+    ModbusEmpire lo da por exitoso.
+  - **Efecto:** el cambio rige **al instante, sin reiniciar**; la ID anterior deja de
+    responder.
+  - **Prueba:** se cambió 1 → 2, se leyó con la ID 2, se comprobó que la 1 no contestaba y se
+    volvió 2 → 1.
+  - **Lectura:** el registro 48 no se puede leer, porque no responde.
+  - **ID olvidada:** el datasheet indica usar la dirección de difusión `0xFE`, con el sensor
+    solo en el bus. No probado.
 - **Baudrate y paridad:** el datasheet no trae registros para cambiarlos.
 
 **Evidencia:** `informe/capturas/rk300-02_fosforo_0-31.csv`: 3 min, registros 0–31, cada
