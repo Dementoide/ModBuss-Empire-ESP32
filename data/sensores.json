@@ -25,5 +25,14 @@
       {"etiqueta": "PM1.0", "reg": 10, "fn": 3, "tipo": "u16", "mult": 1, "off": 0, "uni": "ug/m3"},
       {"etiqueta": "O2", "reg": 19, "fn": 3, "tipo": "u16", "mult": 0.1, "off": 0, "uni": "%VOL"}
     ]
+  },
+  {
+    "nombre": "Rika RK330-01",
+    "reg_id_config": 0,
+    "variables": [
+      {"etiqueta": "Temperatura", "reg": 0, "fn": 3, "tipo": "s16", "mult": 0.1, "off": 0, "uni": "°C"},
+      {"etiqueta": "Humedad", "reg": 1, "fn": 3, "tipo": "u16", "mult": 0.1, "off": 0, "uni": "%RH"},
+      {"etiqueta": "Punto rocio", "reg": 3, "fn": 3, "tipo": "s16", "mult": 0.1, "off": 0, "uni": "°C"}
+    ]
   }
 ]
