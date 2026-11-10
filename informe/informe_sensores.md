@@ -30,6 +30,21 @@ valor.
      volver a 1. Se usa la opción "Cambiar ID del sensor" de la consola, con el registro que
      indique el datasheet.
 - **Conversión:** `valor = crudo_con_signo × multiplicador + offset`.
+- **Cableado Renke:** los colores no son los habituales, porque el amarillo y el azul son el bus,
+  no la alimentación.
+
+  ![Colores de cables Renke: marrón +, negro −, amarillo 485A, azul 485B](../Datasheets/ColorRenkeModbus.png)
+
+  | Cable | Función |
+  |---|---|
+  | Marrón | Alimentación + |
+  | Negro | Alimentación − (GND) |
+  | **Amarillo** | **485-A** |
+  | **Azul** | **485-B** |
+
+  Lo confirma el manual del RS-PM-N01-2. Se supone igual en los demás Renke: comprobarlo con
+  cada uno y anotarlo en su sección. Los Rika usan otro código (en el RK300-02: rojo V+,
+  negro V−, amarillo A, verde B).
 - **Patrón común a los Rika probados:**
   - Los registros 30–32 guardan las **direcciones de los registros de configuración**: RK200-02B
     66 y 64 (dirección y baudrate); RK330-01 128 y 129 (baudrate y paridad); RK300-02 48 en
@@ -383,8 +398,9 @@ oficial de Renke, en chino, V2.2, versión 485; lo bajó el agente desde el CDN 
   muchos modelos.
 - **Variante con temperatura y humedad:** se llama **RS-PMWS-**, con otro mapa (humedad en el
   0, temperatura en el 1, PM desde el 2). **Esta unidad es la variante PM sola.**
-- **Del manual:** cables marrón V+ (10–30 V), negro GND, amarillo 485-A y azul 485-B;
-  precalentamiento ≤ 2 min; rango 0–1000 µg/m³.
+- **Cableado (confirmado en esta unidad):** marrón V+ (10–30 V), negro GND, **amarillo 485-A**
+  y **azul 485-B**. Ver la imagen en "Cableado Renke", más arriba.
+- **Del manual:** precalentamiento ≤ 2 min; rango 0–1000 µg/m³.
 
 **Unidad probada:** el 2026-11-10, con un fósforo.
 
