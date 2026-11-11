@@ -12,6 +12,7 @@ valor.
 | [RK200-02B](#rk200-02b--radiación) | Rika | Sí, en la medición; el cambio de ID no necesita reinicio aunque el datasheet lo pida | Verificado 2026-11-10 |
 | [RS-PM-N01-2 (-T)](#renke-rs-pm-n01-2--polvo-pm25--pm10--pm10) | Renke | Sí, en la medición; el cambio de ID (reg 2000) no está en el manual pero funciona | Verificado 2026-11-10 |
 | [RS-GH-N01-AL-T](#renke-rs-gh-n01-al--radiación-par-µmolm²s) | Renke | Sí, en la medición y el cambio de ID | Verificado 2026-11-11 |
+| [RS-PM-N01-BYH-T](#renke-rs-pm-n01-byh--polvo-pm25--pm10-caja-de-persianas) | Renke | Sí en PM2.5 y PM10. **Sin temperatura ni humedad**, que se pidieron en la compra. El PM1.0 del manual es una copia del PM2.5. | Verificado 2026-11-11, con reclamo pendiente |
 
 ## Cómo se prueba y cómo leer las tablas
 
@@ -541,3 +542,86 @@ En el sitio de Renke no hay PDF.
 
 **Conclusión:** coincide con el manual. La PAR está en el registro 0, en µmol/m²·s sin conversión,
 con ID 1 y **4800 baud**. El cambio de ID funciona en el registro 2000.
+
+---
+
+## Renke RS-PM-N01-BYH — Polvo (PM2.5 / PM10), caja de persianas
+
+**Compra:** modelo del sticker RS-PM-N01-BYH-T. **Se compró para medir también temperatura y
+humedad, pero no las mide.** El sticker no indica la alimentación.
+
+**Datasheet:** el mismo manual del RS-PM-N01-2,
+`Datasheets/RS-PM-N01-2_renke-cn-manual-V2.2_PM2.5,PM10,PM1.pdf`. Renke publica un solo manual
+para las dos carcasas; el PDF que bajó el agente era idéntico byte a byte y no se duplicó.
+
+- **Código del modelo:** RS = Renke, PM = calidad del aire **sin** temperatura y humedad,
+  N01 = RS485, BYH = **caja de persianas** (百叶盒). El "-T" no aparece en ningún documento.
+- **Con temperatura y humedad** el modelo sería **RS-PMWS-N01-BYH**, con otro mapa: humedad
+  ×10 en el 0, temperatura ×10 con signo en el 1, y los PM desde el 2. **Esta unidad no es esa.**
+- **Alimentación:** **10–30 V DC**, 0,5 W. Lo confirman el manual (§1.3, §2.3 y §2.4) y la ficha
+  del fabricante.
+- **Cables (confirmados en esta unidad, iguales al RS-PM-N01-2):** marrón V+, negro GND,
+  **amarillo 485-A**, azul 485-B.
+
+**Unidad probada:** el 2026-11-11, con un fósforo y a unos 30 ℃ ambiente.
+
+### Comunicación
+
+| Parámetro | Valor | ¿Coincide con el manual? |
+|---|---|---|
+| ID | 1 | Sí |
+| Serie | **4800 baud**, 8N1 | Sí |
+| Lectura | Función 03; la 04 devuelve lo mismo | Sí (tabla 03/04) |
+| Máximo por lectura | 0–63 en una trama sin problema | El manual no lo indica |
+| Respuesta al humo | Sube ~2 s después de encender el fósforo y llega al máximo en ~20 s | El manual dice ≤ 90 s |
+
+### Registros
+
+| Reg | Variable | Tipo | Conversión | Unidad | Reposo → fósforo | Cómo se sabe |
+|---|---|---|---|---|---|---|
+| **0 (0x0000)** | **PM2.5** | u16 | × 1 | µg/m³ | 6–8 → 628 | **Confirmado con estímulo** + manual |
+| **1 (0x0001)** | **PM10** | u16 | × 1 | µg/m³ | 7–12 → 1099 | **Confirmado con estímulo** + manual |
+| 2 (0x0002) | Copia del PM2.5 | u16 | × 1 | µg/m³ | igual al reg 0 en las 180 muestras | **Medido.** El manual dice PM1.0, pero en esta unidad es una copia: **no entrega PM1.0 real.** |
+| 3 (0x0003) | Copia del PM10 | u16 | × 1 | µg/m³ | igual al reg 1 en las 180 muestras | Medido |
+| 9 / 10 | ? | u16 | — | — | 5126 (`0x1406`) | Sin identificar (constantes) |
+| 11 / 12 / 13 / 15 | ? | u16 | — | — | 2 / 1000 / 1 / 1 | Sin identificar (constantes; ¿el 12 es el rango, 1000 µg/m³?) |
+| 82 / 83 / 84 | Calibración PM10 / PM2.5 / PM1.0 | u16 | ÷ 10 | µg/m³ | 0 / 0 / 0 | Manual. **No tocar.** |
+| 256–257 (0x100) | ? | — | — | — | `0x3F99 0x999A` (float = 1,2) | Igual que el RS-PM-N01-2 |
+| **2000 (0x07D0)** | **Dirección del esclavo** | u16 | — | — | 1 | **Probado** (no está en el manual) |
+| 2001 (0x07D1) | Baudrate (código) | u16 | — | — | 1 = 4800 | Deducido, por el esquema de Renke. No probado. |
+
+**Búsqueda de temperatura y humedad:** se leyeron los registros 0–143, 256–300, 500–540 y
+2000–2010 con las funciones 03 y 04.
+
+- **Lo que debía aparecer:** con ~30 ℃ ambiente, una temperatura ×10 valdría ~300, y una humedad
+  ~300–800 (o 30–80 sin escala).
+- **Lo que hay:** ningún registro tiene un valor así.
+- **Con el fósforo:** encendido junto a la caja, solo se movieron los registros 0–3. Los 4–15
+  no cambiaron en ninguna de las 180 muestras.
+
+**Cómo calcular:** el valor es el crudo directamente, en µg/m³. Por ejemplo, el reg 0 = 85 →
+**PM2.5 = 85 µg/m³**.
+
+### Cambio de ID
+
+**Probado el 2026-11-11: funciona igual que en el RS-PM-N01-2.**
+
+- **Cómo se hace:** función 06 en el registro **2000 (0x07D0)**.
+- **Efecto:** rige al instante.
+- **Prueba:** se cambió 1 → 2, se comprobó que respondía la 2 (con el registro 2000 = 2) y no la
+  1, y se volvió 2 → 1 (verificado: responde la 1, no la 2).
+
+### Observaciones
+
+- **Sin temperatura ni humedad:** es la variante "solo PM" (RS-PM-). Si la compra pedía
+  temperatura y humedad, correspondía el **RS-PMWS-N01-BYH**. **Reclamo pendiente al proveedor.**
+- **Sin PM1.0 real,** a diferencia de la unidad RS-PM-N01-2, que sí lo entrega en el registro 2.
+  Puede ser otro firmware.
+- **Satura sobre el rango:** el PM10 llegó a 1099 µg/m³ (rango del manual: 1000).
+
+**Evidencia:** `informe/capturas/renke-rs-pm-byh_fosforo_0-15.csv`: 3 min, registros 0–15,
+fósforo encendido en ~1:00.
+
+**Conclusión:** el PM2.5 y el PM10 coinciden con el manual (registros 0 y 1, µg/m³ sin
+conversión, ID 1, **4800 baud**), y el cambio de ID funciona en el registro 2000. **No mide
+temperatura ni humedad**, y el registro 2 repite el PM2.5 en vez de dar PM1.0.

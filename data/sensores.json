@@ -66,5 +66,13 @@
     "variables": [
       {"etiqueta": "PAR", "reg": 0, "fn": 3, "tipo": "u16", "mult": 1, "off": 0, "uni": "umol/m2s"}
     ]
+  },
+  {
+    "nombre": "Renke RS-PM-N01-BYH (4800 baud)",
+    "reg_id_config": 2000,
+    "variables": [
+      {"etiqueta": "PM2.5", "reg": 0, "fn": 3, "tipo": "u16", "mult": 1, "off": 0, "uni": "ug/m3"},
+      {"etiqueta": "PM10", "reg": 1, "fn": 3, "tipo": "u16", "mult": 1, "off": 0, "uni": "ug/m3"}
+    ]
   }
 ]
