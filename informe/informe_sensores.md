@@ -13,6 +13,7 @@ valor.
 | [RS-PM-N01-2 (-T)](#renke-rs-pm-n01-2--polvo-pm25--pm10--pm10) | Renke | Sí, en la medición; el cambio de ID (reg 2000) no está en el manual pero funciona | Verificado 2026-11-10 |
 | [RS-GH-N01-AL-T](#renke-rs-gh-n01-al--radiación-par-µmolm²s) | Renke | Sí, en la medición y el cambio de ID | Verificado 2026-11-11 |
 | [RS-PM-N01-BYH-T](#renke-rs-pm-n01-byh--polvo-pm25--pm10-caja-de-persianas) | Renke | Sí en PM2.5 y PM10. **Sin temperatura ni humedad**, que se pidieron en la compra. El PM1.0 del manual es una copia del PM2.5. | Verificado 2026-11-11, con reclamo pendiente |
+| [RS-CO2-N01-BYH-T](#renke-rs-co2-n01-byh--co2-caja-de-persianas) | Renke | Sí en CO2 y en el cambio de ID. **Sin temperatura ni humedad**, que se pidieron en la compra. | Verificado 2026-11-11, con reclamo pendiente |
 
 ## Cómo se prueba y cómo leer las tablas
 
@@ -587,6 +588,7 @@ para las dos carcasas; el PDF que bajó el agente era idéntico byte a byte y no
 | 11 / 12 / 13 / 15 | ? | u16 | — | — | 2 / 1000 / 1 / 1 | Sin identificar (constantes; ¿el 12 es el rango, 1000 µg/m³?) |
 | 82 / 83 / 84 | Calibración PM10 / PM2.5 / PM1.0 | u16 | ÷ 10 | µg/m³ | 0 / 0 / 0 | Manual. **No tocar.** |
 | 256–257 (0x100) | ? | — | — | — | `0x3F99 0x999A` (float = 1,2) | Igual que el RS-PM-N01-2 |
+| 503 / 504 | Copia del PM2.5 / PM10 | u16 | × 1 | µg/m³ | 8 / 9 en el barrido | Medido. Los registros 500 y 501, que en el mapa de las cajas BYH de Renke son humedad y temperatura, valen 0. Ver la sección RS-CO2-N01-BYH. |
 | **2000 (0x07D0)** | **Dirección del esclavo** | u16 | — | — | 1 | **Probado** (no está en el manual) |
 | 2001 (0x07D1) | Baudrate (código) | u16 | — | — | 1 = 4800 | Deducido, por el esquema de Renke. No probado. |
 
@@ -625,3 +627,91 @@ fósforo encendido en ~1:00.
 **Conclusión:** el PM2.5 y el PM10 coinciden con el manual (registros 0 y 1, µg/m³ sin
 conversión, ID 1, **4800 baud**), y el cambio de ID funciona en el registro 2000. **No mide
 temperatura ni humedad**, y el registro 2 repite el PM2.5 en vez de dar PM1.0.
+
+---
+
+## Renke RS-CO2-N01-BYH — CO2, caja de persianas
+
+**Compra:** modelo del sticker RS-CO2-N01-BYH-T. **Se compró para medir también temperatura y
+humedad, pero no las mide.** Cables iguales a los del RS-PM.
+
+**Datasheet:** `Datasheets/RS-CO2-N01-BYH_renke-cn-manual-V3.2_CO2.pdf`.
+
+- **Qué es:** manual oficial de Renke, en chino, V3.2: 《CO2温湿度一体变送器使用说明书（485型）》.
+- **Modelos que cubre:** el **RS-CO2-N01** (solo CO2) y el **RS-CO2WS-N01** (CO2 con
+  temperatura y humedad).
+- **Lo que no aparece:** las carcasas de la tabla de selección son 2, 2W, 2Y y OLED, sin BYH. El
+  "-T" tampoco aparece en ningún documento.
+- **Sobre la temperatura y la humedad,** el manual dice textualmente: "单二氧化碳设备无温湿度及其相关寄存器"
+  (el equipo de solo CO2 no tiene temperatura, humedad ni sus registros).
+- **Mapa del modelo con temperatura y humedad** (RS-CO2WS): humedad ×10 en el 0, temperatura
+  ×10 con signo en el 1 y CO2 en el 2.
+- **Alimentación:** 10–30 V DC, 0,3 W.
+- **Cables (confirmados en esta unidad):** marrón V+, negro GND, **amarillo 485-A**, azul 485-B.
+- **CO2:**
+  - rango 0–5000 ppm (efectivo de 400 a 5000), precisión ±(50 ppm + 5 %);
+  - precalentamiento de 2 min (10 min para precisión máxima);
+  - actualización cada 2 s.
+
+**Unidad probada:** el 2026-11-11, respirando cerca de la caja.
+
+### Comunicación
+
+| Parámetro | Valor | ¿Coincide con el manual? |
+|---|---|---|
+| ID | 1 | Sí |
+| Serie | **4800 baud**, 8N1 | Sí |
+| Lectura | Función 03; la 04 devuelve lo mismo | Sí |
+| Máximo por lectura | 0–63 en una trama sin problema | El manual no lo indica |
+| Respuesta al aliento | Sube ~5 s después de empezar a respirar cerca; el tope de 5000 ppm llega en ~25 s | El manual dice < 180 s al 90 % |
+
+### Registros
+
+| Reg | Variable | Tipo | Conversión | Unidad | Reposo → aliento | Cómo se sabe |
+|---|---|---|---|---|---|---|
+| **0 (0x0000)** | **CO2** | u16 | × 1 | ppm | 490–515 → **5000** (tope) | **Confirmado con estímulo** + manual |
+| 2 (0x0002) | — | u16 | — | — | 0 | El manual dice que es una copia del CO2; **en esta unidad vale 0** |
+| 9 (0x0009) | ? | u16 | — | — | 5380 (`0x1504`) | Sin identificar (constante) |
+| 11 / 12 / 13 / 15 | ? | u16 | — | — | 6 / 1000 / 1 / 1 | Sin identificar (constantes) |
+| 48–56 | Alarmas y calibraciones del modelo con T/H | — | — | — | 0 | Manual (RS-CO2WS). **No tocar.** |
+| 256–257 (0x100) | ? | — | — | — | `0x3F99 0x999A` (float = 1,2) | Igual que los RS-PM |
+| 500 / 501 | Humedad / temperatura en el mapa de las cajas BYH | — | — | — | **0 / 0** | Mapa del manual del RS-BYH-CO2-M (caja meteorológica de Renke). En esta unidad están vacíos. |
+| 503 | Copia del CO2 | u16 | × 1 | ppm | 445 (con el reg 0 en 447) | Medido. Es la posición del CO2 en ese mismo mapa. |
+| **2000 (0x07D0)** | **Dirección del esclavo** | u16 | — | — | 1 | Manual (1–254) + **probado** |
+| 2001 (0x07D1) | Baudrate (código) | u16 | — | — | 1 = 4800 | Manual: 0 = 2400, 1 = 4800, 2 = 9600, 3 = 19200, 4 = 38400, 5 = 57600, 6 = 115200, 7 = 1200. No probado. |
+
+**Búsqueda de temperatura y humedad:**
+
+- **Barrido:** registros 0–127, 256–270, 497–510 y 2000–2010. Ningún valor parece una
+  temperatura (~300 con ×10, a ~30 ℃) ni una humedad.
+- **Aliento:** sube el CO2, pero también la humedad y la temperatura. Aun así, de los registros
+  0–15 solo se movió el 0, en las 180 muestras.
+- **Las posiciones previstas están vacías:** 0 en los registros de humedad y temperatura del
+  mapa de las cajas BYH (500 y 501).
+
+**Cómo calcular:** el valor es el crudo directamente, en ppm. Por ejemplo, el reg 0 = 850 →
+**CO2 = 850 ppm**.
+
+### Cambio de ID
+
+**Probado el 2026-11-11: funciona en el registro 2000.**
+
+- **Efecto:** rige al instante, aunque el manual pide cortar la alimentación.
+- **Prueba:** se cambió 1 → 2, se comprobó que respondía la 2 (con el registro 2000 = 2) y no la
+  1, y se volvió 2 → 1 (verificado).
+
+### Observaciones
+
+- **Sin temperatura ni humedad:** es la variante "solo CO2" (RS-CO2-). Si la compra pedía
+  temperatura y humedad, correspondía el **RS-CO2WS-N01** en caja BYH. **Reclamo pendiente al
+  proveedor**, junto con el RS-PM-N01-BYH.
+- **Firmware de caja meteorológica:** los dos BYH (polvo y CO2) repiten la medición en el bloque
+  500+ del mapa de la caja meteorológica de Renke y dejan en 0 la humedad y la temperatura. Parecen
+  usar ese firmware sin el sensor de temperatura y humedad instalado.
+- **Satura en 5000 ppm,** el tope del rango, con el aliento directo.
+
+**Evidencia:** `informe/capturas/renke-rs-co2-byh_respiracion_0-15.csv`: 3 min, registros 0–15,
+aliento desde ~0:30 hasta ~0:55.
+
+**Conclusión:** el CO2 coincide con el manual (registro 0, ppm sin conversión, ID 1, **4800
+baud**), y el cambio de ID funciona en el registro 2000. **No mide temperatura ni humedad.**
