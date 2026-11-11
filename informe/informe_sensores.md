@@ -44,7 +44,7 @@ valor.
   | **Azul** | **485-B** |
 
   Lo confirma el manual del RS-PM-N01-2. **No es igual en todos los Renke:** el manual del
-  RS-GH-N01-AL pone el **485-A en el cable verde** (no amarillo). Revisar el cable de cada
+  RS-GH-N01-AL pone el **485-A en el cable verde** (no amarillo), y así viene la unidad. Revisar el cable de cada
   sensor y anotarlo en su sección. Los Rika usan otro código (en el RK300-02: rojo V+,
   negro V−, amarillo A, verde B).
 - **Patrón común a los Rika probados:**
@@ -483,8 +483,8 @@ En el sitio de Renke no hay PDF.
   - precisión ±2 % a 1000 µmol/m²·s;
   - respuesta 0,1 s;
   - IP67, cable de 70 cm.
-- **Cables (según el manual):** marrón V+ (7–30 V), negro GND, **verde 485-A**, azul 485-B.
-  **Distinto del RS-PM**, que usa amarillo para el A.
+- **Cables (confirmados en esta unidad, coinciden con el manual):** marrón V+ (7–30 V), negro GND,
+  **verde 485-A**, azul 485-B. **Distinto del RS-PM**, que usa amarillo para el A.
 - **A diferencia del RK200-02B de Rika,** este sí es PAR real, en µmol/m²·s.
 
 **Unidad probada:** el 2026-11-11, con la linterna del celular, tapándolo y con luz de la ventana.
