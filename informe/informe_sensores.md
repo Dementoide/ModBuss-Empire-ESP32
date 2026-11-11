@@ -11,6 +11,7 @@ valor.
 | [RK300-02](#rk300-02--polvo-pm10--pm25--pm10) | Rika | Sí, con el orden del ejemplo 7.4; los ejemplos 7.1–7.3 están mal | Verificado 2026-11-10 |
 | [RK200-02B](#rk200-02b--radiación) | Rika | Sí, en la medición; el cambio de ID no necesita reinicio aunque el datasheet lo pida | Verificado 2026-11-10 |
 | [RS-PM-N01-2 (-T)](#renke-rs-pm-n01-2--polvo-pm25--pm10--pm10) | Renke | Sí, en la medición; el cambio de ID (reg 2000) no está en el manual pero funciona | Verificado 2026-11-10 |
+| [RS-GH-N01-AL-T](#renke-rs-gh-n01-al--radiación-par-µmolm²s) | Renke | Sí, en la medición y el cambio de ID | Verificado 2026-11-11 |
 
 ## Cómo se prueba y cómo leer las tablas
 
@@ -42,8 +43,9 @@ valor.
   | **Amarillo** | **485-A** |
   | **Azul** | **485-B** |
 
-  Lo confirma el manual del RS-PM-N01-2. Se supone igual en los demás Renke: comprobarlo con
-  cada uno y anotarlo en su sección. Los Rika usan otro código (en el RK300-02: rojo V+,
+  Lo confirma el manual del RS-PM-N01-2. **No es igual en todos los Renke:** el manual del
+  RS-GH-N01-AL pone el **485-A en el cable verde** (no amarillo). Revisar el cable de cada
+  sensor y anotarlo en su sección. Los Rika usan otro código (en el RK300-02: rojo V+,
   negro V−, amarillo A, verde B).
 - **Patrón común a los Rika probados:**
   - Los registros 30–32 guardan las **direcciones de los registros de configuración**: RK200-02B
@@ -463,3 +465,79 @@ tres suben y bajan juntos con el humo.
 **Conclusión:** coincide con el manual. PM2.5, PM10 y PM1.0 están en los registros 0, 1 y 2, en
 µg/m³ sin conversión, con ID 1 y **4800 baud**. Sí entrega PM1.0. Configurar el maestro a 4800,
 no a 9600 como los Rika.
+
+---
+
+## Renke RS-GH-N01-AL — Radiación PAR (µmol/m²·s)
+
+**Compra:** modelo RS-GH-N01-AL-T (el modelo es seguro).
+
+**Datasheet:** `Datasheets/RS-GH-N01-AL_robu-V1.0_PAR.pdf`. Es el "RS-GH-N01-AL Photosynthetically
+active radiation sensor User Manual, Type 485", V1.0, de Renke, publicado por el distribuidor Robu.
+En el sitio de Renke no hay PDF.
+
+- **Código del modelo:** GH = radiación fotosintéticamente activa, N01 = salida RS485,
+  AL = carcasa de aluminio. El "-T" no aparece en ningún documento.
+- **Especificaciones del manual:**
+  - rango 0–2500 **µmol/m²·s**, resolución 1, banda 400–700 nm;
+  - precisión ±2 % a 1000 µmol/m²·s;
+  - respuesta 0,1 s;
+  - IP67, cable de 70 cm.
+- **Cables (según el manual):** marrón V+ (7–30 V), negro GND, **verde 485-A**, azul 485-B.
+  **Distinto del RS-PM**, que usa amarillo para el A.
+- **A diferencia del RK200-02B de Rika,** este sí es PAR real, en µmol/m²·s.
+
+**Unidad probada:** el 2026-11-11, con la linterna del celular, tapándolo y con luz de la ventana.
+
+### Comunicación
+
+| Parámetro | Valor | ¿Coincide con el manual? |
+|---|---|---|
+| ID | 1 | Sí |
+| Serie | **4800 baud**, 8N1 | Sí |
+| Lectura | Función 03; la 04 devuelve lo mismo | El texto dice "solo 03"; los ejemplos dicen 03/04 |
+| Máximo por lectura | 0–63 en una trama sin problema | El manual no lo indica |
+
+### Registros
+
+| Reg | Variable | Tipo | Conversión | Unidad | Medido | Cómo se sabe |
+|---|---|---|---|---|---|---|
+| **0 (0x0000)** | **Radiación PAR** | u16 | × 1 | **µmol/m²·s** | 0 a oscuras; 20–32 con la ventana; hasta **2500** con la linterna | **Confirmado con estímulo** + manual |
+| 3 (0x0003) | ? | u16 | — | — | 0 a oscuras; con luz salta sin orden (168 a 64758) | **Sin identificar**: no está en el manual y no es proporcional al reg 0. **No usar.** |
+| 9 (0x0009) | ? | u16 | — | — | 259 (`0x0103`) | Sin identificar (constante; ¿versión 1.03?) |
+| 82 (0x0052) | Desvío de calibración | s16 | × 1 | µmol/m²·s | 0 | Manual (R/W). **No tocar.** |
+| **2000 (0x07D0)** | **Dirección del esclavo** | u16 | — | — | 1 | Manual + **probado** |
+| 2001 (0x07D1) | Baudrate (código) | u16 | — | — | 1 = 4800 | Manual: 0 = 2400, 1 = 4800, 2 = 9600. No probado. |
+
+**Cómo calcular:** el valor es el crudo directamente, en µmol/m²·s. Por ejemplo, el reg 0 = 100 →
+**PAR = 100 µmol/m²·s**.
+
+### Cambio de ID
+
+**Probado el 2026-11-11: funciona como dice el manual.**
+
+- **Cómo se hace:** función 06 en el registro **2000 (0x07D0)**, igual que el RS-PM.
+- **Respuesta:** eco estándar.
+- **Efecto:** rige al instante.
+- **Prueba:** se cambió 1 → 2, se comprobó que respondía la 2 (con el registro 2000 = 2) y no la
+  1, y se volvió 2 → 1.
+- **ID y baudrate desconocidos:** el manual indica consultarlos con la dirección `0xFF`
+  (`FF 03 07 D0 00 02`). No probado.
+
+### Observaciones
+
+- **Satura en 2500 µmol/m²·s,** el tope del rango, con la linterna del celular muy cerca.
+- **Lee 0 con la luz interior de la pieza** y 20–32 apuntado a la ventana con luz indirecta. El
+  manual pide revisar que se haya sacado la tapa protectora si lee 0 con luz.
+- **Erratas del manual:**
+  - dos CRC de ejemplo mal impresos (`9B AF` → `B9 AF`; `91 59` → `D1 58`);
+  - la respuesta de la consulta de dirección y baudrate no cuadra con los 2 registros pedidos;
+  - el ejemplo 4.4.1 se titula "temperature and humidity".
+
+**Evidencia:** `informe/capturas/renke-rs-gh_luz_0-15.csv`: 2,5 min, registros 0–15.
+
+- **Linterna:** de ~0:18 a 0:26 y de ~1:58 a 2:16.
+- **Ventana:** de ~0:48 a 0:56.
+
+**Conclusión:** coincide con el manual. La PAR está en el registro 0, en µmol/m²·s sin conversión,
+con ID 1 y **4800 baud**. El cambio de ID funciona en el registro 2000.
