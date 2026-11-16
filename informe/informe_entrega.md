@@ -13,6 +13,7 @@ qué registros tiene.
 | [RS-GH-N01-AL-T](#renke-rs-gh-n01-al--radiación-par) | Renke | Sí, en la medición y el cambio de ID | Verificado 2026-11-11 |
 | [RS-PM-N01-BYH-T](#renke-rs-pm-n01-byh--polvo-caja-de-persianas) | Renke | Sí en PM2.5 y PM10. **Sin temperatura ni humedad**, que se pidieron en la compra. El PM1.0 del manual es una copia del PM2.5. | Verificado 2026-11-11, con reclamo pendiente |
 | [RS-CO2-N01-BYH-T](#renke-rs-co2-n01-byh--co2-caja-de-persianas) | Renke | Sí en CO2 y en el cambio de ID. **Sin temperatura ni humedad**, que se pidieron en la compra. | Verificado 2026-11-11, con reclamo pendiente |
+| [RK520-02](#rk520-02--temperatura-humedad-y-ec-de-suelo) | Rika | Sí en la comunicación, la temperatura y el registro de ID; el cambio de ID no necesita reinicio aunque el manual lo pida. Humedad y EC sin probar con estímulo | Verificado 2026-11-16, parcial |
 
 ## Cómo leer las tablas
 
@@ -300,3 +301,40 @@ confirma: el modelo de solo CO2 no tiene esos registros.
 | 2001 (0x07D1) | Baudrate (código) | u16 | — | — | Datasheet |
 
 **Nota:** el manual dice que el registro 2 copia el CO2, pero en esta unidad vale 0.
+
+---
+
+## RK520-02 — Temperatura, humedad y EC de suelo
+
+**Humedad y EC sin probar con estímulo:** la unidad se probó al aire, donde las dos valen 0.
+Sus registros y escalas son los del manual.
+
+| Parámetro | Valor |
+|---|---|
+| ID por defecto | 1 |
+| Serie | 9600 baud, 8N1 |
+| Lectura | Función 03 (la 04 devuelve lo mismo) |
+| Máximo por lectura | Registros 0–9 (0–10 da excepción 02) |
+| Alimentación | Según la etiqueta: 5 V (código RK520-02**A**) o 12–24 V DC (RK520-02**B**) |
+| Cables | Rojo V+, negro V−, **amarillo 485-A**, **verde 485-B** (manual) |
+
+**Cambio de ID (probado):**
+
+- **Cómo:** función 06 en el **registro 512 (0x0200)** con la ID nueva. Ejemplo para pasar a la
+  ID 2: `01 06 02 00 00 02 09 B3`. La respuesta es el eco estándar.
+- **Efecto:** rige al instante, aunque el manual pide reiniciar.
+- **Baudrate:** el manual no dice cómo cambiarlo.
+- **ID olvidada (datasheet, no probado):** usar la dirección de difusión `0xFE` (no la `0x00`)
+  con el sensor solo en el bus.
+
+| Reg | Variable | Tipo | Conversión | Unidad | Origen |
+|---|---|---|---|---|---|
+| **0 (0x0000)** | **Temperatura** | s16 | ÷ 10 | ℃ | Confirmado (coincide con el RK330-01 al lado) |
+| **1 (0x0001)** | **Humedad del suelo (volumétrica)** | u16 | ÷ 10 | % | Datasheet; 0 al aire |
+| **2 (0x0002)** | **Conductividad eléctrica (EC)** | u16 | ÷ 1000 | mS/cm | Datasheet; 0 al aire. El crudo ya está en µS/cm |
+| 512 (0x0200) | Dirección del esclavo | u16 | — | — | Confirmado |
+
+**Ejemplo (del manual):** lectura `01 03 00 00 00 03 05 CB`, respuesta
+`01 03 06 01 16 03 E8 01 1E 68 8F` → 0x0116 = 278 → **27,8 ℃**; 0x03E8 = 1000 → **100 %**;
+0x011E = 286 → **0,286 mS/cm**. Temperatura negativa: `0xFF05` = 65285 → 65285 − 65536 = −251
+→ **−25,1 ℃**.

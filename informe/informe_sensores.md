@@ -14,6 +14,7 @@ valor.
 | [RS-GH-N01-AL-T](#renke-rs-gh-n01-al--radiación-par-µmolm²s) | Renke | Sí, en la medición y el cambio de ID | Verificado 2026-11-11 |
 | [RS-PM-N01-BYH-T](#renke-rs-pm-n01-byh--polvo-pm25--pm10-caja-de-persianas) | Renke | Sí en PM2.5 y PM10. **Sin temperatura ni humedad**, que se pidieron en la compra. El PM1.0 del manual es una copia del PM2.5. | Verificado 2026-11-11, con reclamo pendiente |
 | [RS-CO2-N01-BYH-T](#renke-rs-co2-n01-byh--co2-caja-de-persianas) | Renke | Sí en CO2 y en el cambio de ID. **Sin temperatura ni humedad**, que se pidieron en la compra. | Verificado 2026-11-11, con reclamo pendiente |
+| [RK520-02](#rk520-02--temperatura-humedad-y-ec-de-suelo) | Rika | Sí en la comunicación, la temperatura y el registro de ID; el cambio de ID no necesita reinicio aunque el manual lo pida. Humedad y EC sin probar con estímulo | Verificado 2026-11-16, parcial |
 
 ## Cómo se prueba y cómo leer las tablas
 
@@ -715,3 +716,92 @@ aliento desde ~0:30 hasta ~0:55.
 
 **Conclusión:** el CO2 coincide con el manual (registro 0, ppm sin conversión, ID 1, **4800
 baud**), y el cambio de ID funciona en el registro 2000. **No mide temperatura ni humedad.**
+
+---
+
+## RK520-02 — Temperatura, humedad y EC de suelo
+
+**Datasheets:**
+
+- **Manual V3.0** (Rika, incluye el protocolo Modbus): `Datasheets/RK520-02_manual-v3.0_T,H,EC.pdf`.
+  Lo publica un distribuidor; la hoja de ESIS de la misma versión no trae el protocolo.
+- **Ficha V5.0** (2025-04-28): `Datasheets/RK520-02_spec-v5.0_T,H,EC.pdf`. Solo trae los datos
+  técnicos, sin el protocolo.
+
+**Diferencias entre las dos versiones:**
+
+- **Rango de EC:** 0–10 mS/cm en la V3.0; 0–5000, 10000 (típico) o 20000 µS/cm en la V5.0.
+- **Alimentación:** "según la etiqueta" en la V3.0 (código A = 5 V, B = 12–24 V); 3,6–30 V DC
+  en la V5.0.
+- **Resolución de EC:** la V5.0 dice 0,01 mS/cm, pero el registro viene en pasos de 0,001 mS/cm
+  (1 µS/cm). La resolución de la ficha es la de la medición, no la escala del registro.
+
+**Unidad probada:** 1, el 2026-11-16, **al aire** (sin agua ni tierra). Venía con los cables sin
+marcar, junto con un RK330-01 y un RK300-08. Se identificó por descarte: es el único de los
+tres que responde al registro 512 con su ID, y el único que rechaza leer los registros 0–15
+de una vez.
+
+### Comunicación
+
+| Parámetro | Valor | ¿Coincide con el datasheet? |
+|---|---|---|
+| ID | **1** (de fábrica) | Sí |
+| Serie | 9600 baud, 8N1 | Sí |
+| Lectura | Función **03**. La función 04 devuelve los mismos valores. | Sí: el manual indica 03 |
+| Máximo por lectura | 0–9 en una trama; 0–10 o más devuelve la excepción 02 (dirección ilegal). El 512 se lee solo. | El manual no lo indica |
+| Tiempo por muestra | 50–110 ms para 10 registros | — |
+| Cables | Rojo V+, negro V−, **amarillo 485-A**, **verde 485-B**; el café es la temperatura en la versión analógica | Manual; es el mismo código que el RK300-02 |
+
+### Registros
+
+| Reg | Variable | Tipo | Conversión | Unidad | Al aire | Cómo se sabe |
+|---|---|---|---|---|---|---|
+| **0 (0x0000)** | **Temperatura** | s16 | ÷ 10 | ℃ | 207–213 → 20,7–21,3 ℃ | **Confirmado por comparación:** el RK330-01 midió 21,0 ℃ en el mismo lugar (dentro de ±0,5 ℃) + datasheet |
+| **1 (0x0001)** | **Humedad del suelo (volumétrica)** | u16 | ÷ 10 | % (m³/m³) | 0 | Datasheet + plausible (0 al aire). **Sin estímulo** |
+| **2 (0x0002)** | **Conductividad eléctrica (EC)** | u16 | ÷ 1000 | mS/cm | 0 | Datasheet + plausible (0 al aire). **Sin estímulo.** El crudo ya está en µS/cm |
+| 3, 4, 6, 8, 9 | ? | u16 | — | — | 0 | Sin identificar |
+| 5 (0x0005) | ? | u16 | — | — | 118–120 | Sin identificar (varía un poco; puede ser una medición interna en crudo) |
+| 7 (0x0007) | ? | u16 | — | — | 541–542 | Sin identificar (ídem) |
+| 512 (0x0200) | Dirección del esclavo | u16 | — | — | 1 | **Confirmado:** pasó a 2 al cambiar la ID |
+
+**Cómo calcular:** el ejemplo del manual es la respuesta `01 03 06 01 16 03 E8 01 1E 68 8F`.
+
+- **Temperatura:** 0x0116 = 278 → **27,8 ℃**.
+- **Humedad:** 0x03E8 = 1000 → **100 %**.
+- **EC:** 0x011E = 286 → **0,286 mS/cm** (el manual escribe 0,28: trunca).
+- **Temperatura negativa:** si el crudo es ≥ 0x8000, restar 65536. El manual lo explica con
+  `0xFF05 − 0xFFFF − 1` = −251 → **−25,1 ℃**, que es lo mismo.
+
+Los CRC de todas las tramas de ejemplo del manual son correctos.
+
+### Cambio de ID
+
+**Probado el 2026-11-16: funciona, con una diferencia respecto del manual.**
+
+- **Cómo se hace:** función 06 en el registro **0x0200 (512)** con la ID nueva. Ejemplo del
+  manual para la ID 2: `01 06 02 00 00 02 09 B3`.
+- **Respuesta:** eco estándar, así que la opción "Cambiar ID" de ModbusEmpire lo da por exitoso.
+- **Diferencia con el manual:** el documento dice que el cambio se aplica después de reiniciar,
+  pero **rige al instante**. Se cambió 1 → 2, respondió la 2 (con el registro 512 = 2) y no la 1,
+  y se volvió 2 → 1 (verificado).
+- **Reinicio:** no se probó qué ID tiene el sensor al reiniciarlo después de un cambio.
+- **Baudrate:** el manual no dice cómo cambiarlo.
+- **ID olvidada:** el manual indica usar la dirección de difusión **0xFE** (no la 0x00
+  estándar), con el sensor solo en el bus. No probado. La consola de ModbusEmpire solo acepta
+  IDs 0–247, así que no puede usarla; para encontrar la ID sirve el escaneo (menú 3).
+
+### Observaciones
+
+- **El registro 512 identifica al RK520:** el RK330-01 no responde a ese registro y el RK300-08
+  responde con 0. El RK520 devuelve su ID.
+- **`data/sensores.json`:** la entrada "Rika RK520-02" tiene la EC con `mult: 0.01`, que da
+  valores 10 veces más altos. Lo correcto es `0.001` (mS/cm) o `1` (µS/cm).
+- **Pendiente:** probar la humedad y la EC con estímulo (agua de la llave o tierra húmeda), para
+  confirmar las escalas.
+
+**Evidencia:** `informe/capturas/rk520-02_aire_0-9.csv`: 30 s al aire, registros 0–9, cada
+500 ms, sin errores.
+
+**Conclusión:** la comunicación (ID 1, 9600, función 03), la temperatura (registro 0, ÷ 10) y
+el cambio de ID (registro 512, al instante) coinciden con el manual. La humedad (registro 1,
+÷ 10) y la EC (registro 2, ÷ 1000 en mS/cm) siguen el manual, pero falta probarlas con estímulo.
