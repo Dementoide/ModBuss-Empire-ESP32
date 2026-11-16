@@ -85,7 +85,7 @@ y 0–100 %RH ±3 %RH.
 | ID | 1 | Sí |
 | Serie | 9600 baud, 8N1 | Sí |
 | Lectura | Función 03 (holding) | Sí. La función 04 no responde (no la indica). |
-| Escritura | Función 06 | Según el datasheet; no probada. |
+| Escritura | Función 06 | Sí: probada con el cambio de ID |
 | Máximo por lectura | Hasta el registro 32 (0–32 en una trama) | El datasheet no lo indica. Leer 0–33, el 34 solo o bloques más arriba no da respuesta (timeout, no excepción). |
 | Actualización | No medida | — |
 
@@ -97,7 +97,7 @@ y 0–100 %RH ±3 %RH.
 | **1 (0x0001)** | **Humedad relativa** | **u16** | **÷ 10** | %RH | 392 → **39,2 %RH** | Datasheet + plausible |
 | 2 (0x0002) | Presión | u16 | ÷ 10 | hPa | 0 | Datasheet. Vale 0 porque no se compró. |
 | 3 (0x0003) | Punto de rocío | s16 | ÷ 10 | ℃ | 130 → 13,0 ℃ | **Deducido**: el calculado con T y H (Magnus) da 13,1 / 12,9 / 13,0 contra 13,0 / 12,8 / 12,9 medido |
-| 12 (0x000C) | Dirección del esclavo (lectura) | u16 | — | — | 1 | Deducido |
+| 12 (0x000C) | ID guardada (lectura) | u16 | — | — | 1 | **Confirmado:** no es la ID activa. Siguió en 1 con la ID cambiada a 2 y pasó a 2 recién al reiniciar el sensor |
 | 13 (0x000D) | Baudrate | u16 en hex "BCD" | — | — | `0x9600` = 9600 | Deducido. Usa la misma codificación del datasheet: `0x1200` = 1200, `0x4800` = 4800 |
 | 16 / 17 | Rango de temperatura mín./máx. | s16 | ÷ 10 | ℃ | −400 / 600 → −40,0 / 60,0 | Deducido; coincide con la ficha (−40–60 ℃) |
 | 18 / 19 | Rango de humedad mín./máx. | u16 | ÷ 10 | %RH | 0 / 1000 → 0 / 100,0 | Deducido |
@@ -120,10 +120,15 @@ y 0–100 %RH ±3 %RH.
 - **Presión:** la tabla dice kPa y el ejemplo convierte a mbar (10024 → 1002,4). Por los
   registros de rango (300–1100), la unidad es **hPa (= mbar)**. No aplica a esta unidad
   porque no trae presión.
-- **Cambio de ID:** el datasheet escribe la ID nueva con función 06 en el **registro 0**, y su
-  respuesta no es el eco estándar de la 06. La opción "Cambiar ID" de ModbusEmpire espera el
-  eco, así que marcaría error aunque el cambio haya funcionado. El cambio toma efecto después
-  de reiniciar el sensor. **No probado.**
+- **Cambio de ID: probado el 2026-11-16, funciona con dos diferencias.** Se escribe con
+  función 06 en el **registro 0** la ID nueva (0–127): `01 06 00 00 00 02` para pasar a la 2.
+  - **Respuesta:** el datasheet muestra una respuesta de 7 bytes que no es el eco, pero el
+    sensor responde con el **eco estándar**. La opción "Escribir registro" de ModbusEmpire lo
+    da por exitoso.
+  - **Efecto:** el datasheet dice que rige después de reiniciar, pero **rige al instante**: se
+    cambió 1 → 2 y la 1 dejó de responder. Después de reiniciarlo siguió en la 2.
+  - **Registro 12:** guarda la ID con la que arrancó el sensor, no la activa.
+  - Quedó en la ID 2 para el bus en paralelo (ver al final).
 - **Códigos de baudrate:** la tabla de códigos no incluye 9600, aunque el sensor viene a 9600
   y el registro 13 lo informa como `0x9600`.
 
@@ -336,7 +341,7 @@ ultrasónico.
 | **10 (0x000A)** | **PM1.0** | u16 | × 1 | µg/m³ | 1 | **Confirmado con estímulo**: humo → 586 |
 | **19 (0x0013)** | **O₂** | u16 | × 0,1 | %VOL | 208 → 20,8 % | **Confirmado con estímulo**: aliento → 19,4 % |
 | 0 (0x0000) | ¿SO₂? | u16 | × 0,01 (supuesto) | ppm | 2 → 0,02 | **Sin identificar**: subió a 40 una vez con aliento; no reacciona a fósforos ni a humidificador |
-| 15 (0x000F) | Dirección del esclavo | u16 | — | — | 1 | Datasheet (escritura con 06) + plausible |
+| 15 (0x000F) | Dirección del esclavo | u16 | — | — | 1 | **Confirmado:** cambio de ID probado |
 | 16 (0x0010) | Baudrate (literal) | u16 | — | baud | 9600 | Deducido. El datasheet dice CH₄ |
 | 30 | ? | u16 | — | — | 769 (`0x0301`) | Sin identificar (constante; ¿versión 3.1?) |
 | 32 / 33 | ? | u16 | — | — | 16384 / 14916, luego 8960 / 4868 | Sin identificar: cambiaron entre dos lecturas separadas por minutos y quedaron fijos durante 7 min (¿calibración o contador interno?) |
@@ -348,6 +353,18 @@ ultrasónico.
 - CO₂: crudo 412 → **412 ppm**
 - O₂: crudo 208 → 208 × 0,1 = **20,8 %VOL**
 - PM2.5: crudo 3 → **3 µg/m³**
+
+### Cambio de ID
+
+**Probado el 2026-11-16: funciona en el registro 15, que es lo único del datasheet que coincide.**
+
+- **Cómo se hace:** función 06 en el registro **15 (0x000F)** con la ID nueva.
+- **Efecto:** rige al instante y se mantiene al reiniciar. Se cambió 1 → 3 y la 1 dejó de
+  responder.
+- **Respuesta:** el sensor **contesta la escritura desde la ID nueva**. ModbusEmpire la descarta
+  y marca `0xE0 INVALID_SLAVE_ID` (respondió otra dirección), aunque el cambio funcionó. Para
+  comprobarlo, leer con la ID nueva.
+- Quedó en la ID 3 para el bus en paralelo (ver al final).
 
 ### Lo que no coincide con la compra (para el reclamo)
 
@@ -510,7 +527,7 @@ En el sitio de Renke no hay PDF.
 | 9 (0x0009) | ? | u16 | — | — | 259 (`0x0103`) | Sin identificar (constante; ¿versión 1.03?) |
 | 82 (0x0052) | Desvío de calibración | s16 | × 1 | µmol/m²·s | 0 | Manual (R/W). **No tocar.** |
 | **2000 (0x07D0)** | **Dirección del esclavo** | u16 | — | — | 1 | Manual + **probado** |
-| 2001 (0x07D1) | Baudrate (código) | u16 | — | — | 1 = 4800 | Manual: 0 = 2400, 1 = 4800, 2 = 9600. No probado. |
+| 2001 (0x07D1) | Baudrate (código) | u16 | — | — | 1 = 4800 | Manual: 0 = 2400, 1 = 4800, 2 = 9600. **Probado** (4800 → 9600) |
 
 **Cómo calcular:** el valor es el crudo directamente, en µmol/m²·s. Por ejemplo, el reg 0 = 100 →
 **PAR = 100 µmol/m²·s**.
@@ -526,6 +543,9 @@ En el sitio de Renke no hay PDF.
   1, y se volvió 2 → 1.
 - **ID y baudrate desconocidos:** el manual indica consultarlos con la dirección `0xFF`
   (`FF 03 07 D0 00 02`). No probado.
+- **Baudrate: probado el 2026-11-16.** Se escribió el código 2 (9600) en el registro **2001
+  (0x07D1)**. Rige al instante, aunque el manual pide cortar la alimentación, y se mantiene al
+  reiniciar. Junto con la ID 10, así quedó para el bus en paralelo (ver al final).
 
 ### Observaciones
 
@@ -805,3 +825,25 @@ Los CRC de todas las tramas de ejemplo del manual son correctos.
 **Conclusión:** la comunicación (ID 1, 9600, función 03), la temperatura (registro 0, ÷ 10) y
 el cambio de ID (registro 512, al instante) coinciden con el manual. La humedad (registro 1,
 ÷ 10) y la EC (registro 2, ÷ 1000 en mS/cm) siguen el manual, pero falta probarlas con estímulo.
+
+---
+
+## Bus en paralelo
+
+**Probado el 2026-11-16:** los cuatro sensores en el mismo bus RS485, todos a **9600 baud**.
+Cada uno respondió solo a su ID, sin errores, y todos mantuvieron la ID y el baudrate después
+de reiniciarlos.
+
+| ID | Sensor | Cambio hecho | Lectura de control |
+|---|---|---|---|
+| 1 | RK520-02 | Ninguno (de fábrica) | 23,9 ℃ |
+| 2 | RK330-01 | ID 1 → 2 (registro 0) | 24,0 ℃, 51,9 %RH |
+| 3 | RK300-08 | ID 1 → 3 (registro 15) | CO2 462 ppm, O2 20,6 % |
+| 10 | Renke RS-GH-N01-AL | ID 1 → 10 (registro 2000) y 4800 → 9600 baud (registro 2001 = 2) | PAR 0 (a oscuras) |
+
+- **Cómo se armó:** como todos vienen con la ID 1, se conectaron de a uno y se cambió la ID del
+  recién conectado antes de sumar el siguiente. El RK520-02, el último, quedó con la ID 1.
+- **Un solo baudrate:** el Renke viene a 4800 y los Rika a 9600. Se pasó el Renke a 9600 para
+  que el bus funcione con una sola velocidad (y la GUI, que lee a un baudrate por sesión).
+- **IDs por marca:** los números bajos quedan para los Rika y del 10 en adelante para los Renke.
+- **Temperatura:** el RK520-02 y el RK330-01, uno al lado del otro, difieren en 0,1 ℃.

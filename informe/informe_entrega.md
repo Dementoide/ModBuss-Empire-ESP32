@@ -50,12 +50,11 @@ alimentación. Revisar el de cada modelo en su sección.
 | Lectura | Función 03 (la 04 no responde) |
 | Máximo por lectura | Hasta el registro 32 |
 
-**Cambio de ID (datasheet, no probado):**
+**Cambio de ID (probado):**
 
-- **Cómo:** función 06 en el **registro 0** con la ID nueva.
-- **Efecto:** rige después de reiniciar el sensor.
-- **Respuesta:** no es el eco estándar de la función 06, así que un maestro Modbus puede marcar
-  error aunque el cambio haya funcionado.
+- **Cómo:** función 06 en el **registro 0** con la ID nueva (0–127).
+- **Efecto:** rige al instante, aunque el datasheet pide reiniciar. Se mantiene al reiniciar.
+- **Respuesta:** el eco estándar de la función 06, aunque el datasheet muestra otra.
 
 | Reg | Variable | Tipo | Conversión | Unidad | Origen |
 |---|---|---|---|---|---|
@@ -63,7 +62,7 @@ alimentación. Revisar el de cada modelo en su sección.
 | **1 (0x0001)** | **Humedad relativa** | u16 | ÷ 10 | %RH | Datasheet |
 | **3 (0x0003)** | **Punto de rocío** | s16 | ÷ 10 | ℃ | Deducido (cuadra con el calculado a partir de T y H) |
 | 2 (0x0002) | Presión | u16 | ÷ 10 | hPa | Datasheet; vale 0 en esta unidad, que no la trae |
-| 12 (0x000C) | Dirección del esclavo (solo lectura) | u16 | — | — | Deducido |
+| 12 (0x000C) | ID guardada (solo lectura; se actualiza al reiniciar el sensor) | u16 | — | — | Confirmado |
 | 13 (0x000D) | Baudrate | hex "BCD" | — | — | Deducido: `0x9600` = 9600 |
 | 16 / 17 | Rango de temperatura mín./máx. | s16 | ÷ 10 | ℃ | Deducido: −40,0 / 60,0 |
 | 18 / 19 | Rango de humedad mín./máx. | u16 | ÷ 10 | %RH | Deducido: 0 / 100,0 |
@@ -83,8 +82,9 @@ alimentación. Revisar el de cada modelo en su sección.
 | Lectura | Función 03 (la 04 no responde) |
 | Actualización | 1 vez por segundo |
 
-**Cambio de ID (datasheet, no probado):** función 06 en el **registro 15 (0x000F)** con la ID
-nueva.
+**Cambio de ID (probado):** función 06 en el **registro 15 (0x000F)** con la ID nueva. Rige al
+instante y se mantiene al reiniciar. **El sensor responde desde la ID nueva**, así que un maestro
+Modbus marca error (ID que no cuadra) aunque el cambio haya funcionado.
 
 **Mapa de registros:** es el medido en la unidad. **No es el de los datasheets entregados.**
 
@@ -96,7 +96,7 @@ nueva.
 | **10 (0x000A)** | **PM1.0** | u16 | × 1 | µg/m³ | Confirmado |
 | **19 (0x0013)** | **O₂** | u16 | × 0,1 | %VOL | Confirmado |
 | 0 (0x0000) | ¿SO₂? | u16 | × 0,01 (supuesto) | ppm | **Sin confirmar**: no reaccionó a los estímulos |
-| 15 (0x000F) | Dirección del esclavo | u16 | — | — | Datasheet |
+| 15 (0x000F) | Dirección del esclavo | u16 | — | — | Confirmado |
 | 16 (0x0010) | Baudrate (valor literal) | u16 | — | baud | Deducido: 9600 |
 | 14, 17, 18, 20–29 | Sin módulo instalado | — | — | — | Deducido: valen siempre `0xFFFF` |
 
@@ -220,8 +220,9 @@ Es el **tipo B**: mide irradiancia de 350–1100 nm, de 0 a 2000 **W/m²**. **No
 
 - **Cómo:** función 06 en el **registro 2000 (0x07D0)** con la ID nueva.
 - **Efecto:** rige al instante.
-- **Baudrate (datasheet, no probado):** **registro 2001 (0x07D1)** con un código: 0 = 2400,
-  1 = 4800, 2 = 9600.
+- **Baudrate (probado):** **registro 2001 (0x07D1)** con un código: 0 = 2400, 1 = 4800,
+  2 = 9600. Rige al instante, aunque el manual pide cortar la alimentación, y se mantiene al
+  reiniciar.
 - **ID o baudrate olvidados (datasheet, no probado):** leer con la dirección `0xFF`:
   `FF 03 07 D0 00 02`.
 
@@ -230,7 +231,7 @@ Es el **tipo B**: mide irradiancia de 350–1100 nm, de 0 a 2000 **W/m²**. **No
 | **0 (0x0000)** | **PAR** | u16 | × 1 | µmol/m²·s | Confirmado (satura en 2500) |
 | 82 (0x0052) | Desvío de calibración | s16 | × 1 | µmol/m²·s | Datasheet. **No escribir.** |
 | 2000 (0x07D0) | Dirección del esclavo | u16 | — | — | Confirmado |
-| 2001 (0x07D1) | Baudrate (código) | u16 | — | — | Datasheet |
+| 2001 (0x07D1) | Baudrate (código) | u16 | — | — | Confirmado |
 
 **Nota:** el registro 3 cambia con la luz, pero de forma errática y sin documentar. **No
 usarlo.**
@@ -338,3 +339,20 @@ Sus registros y escalas son los del manual.
 `01 03 06 01 16 03 E8 01 1E 68 8F` → 0x0116 = 278 → **27,8 ℃**; 0x03E8 = 1000 → **100 %**;
 0x011E = 286 → **0,286 mS/cm**. Temperatura negativa: `0xFF05` = 65285 → 65285 − 65536 = −251
 → **−25,1 ℃**.
+
+---
+
+## Bus en paralelo
+
+Configuración probada el 2026-11-16: los cuatro sensores en el mismo bus RS485, todos a
+**9600 baud**, sin conflictos.
+
+| ID | Sensor | Cambio hecho |
+|---|---|---|
+| 1 | RK520-02 | Ninguno (de fábrica) |
+| 2 | RK330-01 | ID 1 → 2 (registro 0) |
+| 3 | RK300-08 | ID 1 → 3 (registro 15) |
+| 10 | Renke RS-GH-N01-AL | ID 1 → 10 (registro 2000) y 4800 → 9600 baud (registro 2001 = 2) |
+
+**Para armarlo:** conectar los sensores de a uno, porque todos vienen con la ID 1. Cambiar la ID
+del recién conectado antes de sumar el siguiente; el último puede quedar con la ID 1.

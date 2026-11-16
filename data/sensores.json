@@ -61,7 +61,7 @@
     ]
   },
   {
-    "nombre": "Renke RS-GH-N01-AL (4800 baud)",
+    "nombre": "Renke RS-GH-N01-AL (9600 baud, ID 10)",
     "reg_id_config": 2000,
     "variables": [
       {"etiqueta": "PAR", "reg": 0, "fn": 3, "tipo": "u16", "mult": 1, "off": 0, "uni": "umol/m2s"}
